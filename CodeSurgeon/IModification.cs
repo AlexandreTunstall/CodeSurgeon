@@ -156,18 +156,13 @@ namespace CodeSurgeon
 
         private void CheckAttributes(TypeDef type)
         {
-            TypeAttributes modified = type.Attributes;
-            if (!CheckAccessLevel(type.Attributes.GetAccessLevel(IsNested)))
-            {
-                BeginModify();
-                Attributes.Replace(ref modified, TypeAttributes.VisibilityMask);
-            }
-            if (!Attributes.Equals(modified, ~TypeAttributes.VisibilityMask))
-            {
-                BeginModify();
-                Attributes.Replace(ref modified, ~TypeAttributes.VisibilityMask);
-            }
-            type.Attributes = modified;
+            TypeAttributes newAttributes = type.Attributes;
+            TypeAttributes mask = TypeAttributes.VisibilityMask;
+            if (!CheckAccessLevel(type.Attributes.GetAccessLevel(IsNested))) Attributes.Replace(ref newAttributes, mask);
+            if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
+            if (type.Attributes == newAttributes) return;
+            BeginModify();
+            type.Attributes = newAttributes;
         }
 
         public sealed class Builder : IModificationBuilder<TypeModification>
@@ -257,18 +252,13 @@ namespace CodeSurgeon
 
         private void CheckAttributes(FieldDef field)
         {
-            FieldAttributes modified = field.Attributes;
-            if (!CheckAccessLevel(field.Attributes.GetAccessLevel()))
-            {
-                BeginModify();
-                Attributes.Replace(ref modified, FieldAttributes.FieldAccessMask);
-            }
-            if (!Attributes.Equals(modified, ~FieldAttributes.FieldAccessMask))
-            {
-                BeginModify();
-                Attributes.Replace(ref modified, ~FieldAttributes.FieldAccessMask);
-            }
-            field.Attributes = modified;
+            FieldAttributes newAttributes = field.Attributes;
+            FieldAttributes mask = FieldAttributes.FieldAccessMask;
+            if (!CheckAccessLevel(field.Attributes.GetAccessLevel())) Attributes.Replace(ref newAttributes, mask);
+            if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
+            if (field.Attributes == newAttributes) return;
+            BeginModify();
+            field.Attributes = newAttributes;
         }
 
         public class Builder : IModificationBuilder<FieldModification>
@@ -316,18 +306,13 @@ namespace CodeSurgeon
 
         private void CheckAttributes(MethodDef method)
         {
-            MethodAttributes modified = method.Attributes;
-            if (!CheckAccessLevel(method.Attributes.GetAccessLevel()))
-            {
-                BeginModify();
-                Attributes.Replace(ref modified, MethodAttributes.MemberAccessMask);
-            }
-            if (!Attributes.Equals(modified, ~MethodAttributes.MemberAccessMask))
-            {
-                BeginModify();
-                Attributes.Replace(ref modified, ~MethodAttributes.MemberAccessMask);
-            }
-            method.Attributes = modified;
+            MethodAttributes newAttributes = method.Attributes;
+            MethodAttributes mask = MethodAttributes.MemberAccessMask;
+            if (!CheckAccessLevel(method.Attributes.GetAccessLevel())) Attributes.Replace(ref newAttributes, mask);
+            if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
+            if (method.Attributes == newAttributes) return;
+            BeginModify();
+            method.Attributes = newAttributes;
         }
 
         public class Builder : IModificationBuilder<MethodModification>
