@@ -9,6 +9,8 @@ namespace CodeSurgeon
     public interface IModification
     {
         ModificationKind Kind { get; }
+        UTF8String FullName { get; }
+        SymbolKind SymbolKind { get; }
     }
 
     public interface IModificationBuilder<out TMod> where TMod : IModification
@@ -25,35 +27,63 @@ namespace CodeSurgeon
         CreateIfMissing
     }
 
-    public abstract class AbstractModification : IModification
+    public enum SymbolKind
     {
+        Type,
+        Field,
+        Method,
+        Property,
+        Event
+    }
+
+    public abstract class AbstractModification<TSymbol> : IModification where TSymbol : AbstractModification<TSymbol>
+    {
+        private protected const SigComparerOptions SearchOptions = SigComparerOptions.DontCompareTypeScope | SigComparerOptions.IgnoreModifiers | SigComparerOptions.DontCompareReturnType | SigComparerOptions.PrivateScopeIsComparable;
+        private protected static readonly SigComparer Comparer = new SigComparer(SearchOptions);
+
         public ModificationKind Kind { get; }
         public bool ReadOnly { get; }
 
-        internal abstract AccessLevel AccessLevel { get; }
+        public abstract UTF8String FullName { get; }
+        public abstract SymbolKind SymbolKind { get; }
+
+        private protected abstract TSymbol This { get; }
 
         private protected AbstractModification(ModificationKind kind, bool readOnly)
         {
+            if (!(this is TSymbol)) throw new InvalidOperationException("derived type must inherit TSymbol");
             Kind = kind;
             ReadOnly = readOnly;
         }
 
-        private protected bool CheckExistence(IDnlibDef target, string targetKind, string name)
+        private protected bool CheckExistence(IDnlibDef target)
         {
             switch (Kind)
             {
                 case ModificationKind.FailIfPresent:
-                    if (target != null) throw new InstallException(targetKind + " " + name + " already exists");
+                    if (target != null) throw new SymbolInstallException<TSymbol>(This, new InstallException("a definition for this symbol already exists"));
                     return true;
                 case ModificationKind.FailIfMissing:
-                    if (target == null) throw new InstallException(targetKind + " " + name + " could not be found");
+                    if (target == null) throw new SymbolInstallException<TSymbol>(This, new InstallException("could not find a definition for this symbol"));
                     return false;
                 case ModificationKind.CreateIfMissing:
                     return target != null;
                 default:
-                    throw new InstallException("unknown modification kind " + Kind);
+                    throw new SymbolInstallException<TSymbol>(This, new InstallException("unknown modification kind " + Kind));
             }
         }
+
+        private protected void BeginModify()
+        {
+            if (ReadOnly) throw new ReadOnlyInstallException();
+        }
+    }
+
+    public abstract class AccessibleModification<TSymbol> : AbstractModification<TSymbol> where TSymbol : AccessibleModification<TSymbol>
+    {
+        internal abstract AccessLevel AccessLevel { get; }
+
+        private protected AccessibleModification(ModificationKind kind, bool readOnly) : base(kind, readOnly) { }
 
         private protected bool CheckAccessLevel(AccessLevel actual)
         {
@@ -84,11 +114,6 @@ namespace CodeSurgeon
             }
             throw new ArgumentException("unknown existing access level " + actual);
         }
-
-        private protected void BeginModify()
-        {
-            if (ReadOnly) throw new InstallException("existing read-only definition is incompatible with the patch");
-        }
     }
 
     internal enum AccessLevel
@@ -101,10 +126,8 @@ namespace CodeSurgeon
         Public
     }
 
-    public sealed class TypeModification : AbstractModification
+    public sealed class TypeModification : AccessibleModification<TypeModification>
     {
-        private const SigComparerOptions SearchOptions = SigComparerOptions.DontCompareTypeScope | SigComparerOptions.IgnoreModifiers | SigComparerOptions.DontCompareReturnType | SigComparerOptions.PrivateScopeIsComparable;
-
         public UTF8String Namespace { get; }
         public UTF8String Name { get; }
 
@@ -114,9 +137,13 @@ namespace CodeSurgeon
 
         public TypeAttributes Attributes { get; }
 
+        public override UTF8String FullName => IsNested ? Name : Namespace.Concat(".", Name);
+        public override SymbolKind SymbolKind => SymbolKind.Type;
         public bool IsNested => Namespace is null;
 
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel(IsNested);
+
+        private protected override TypeModification This => this;
 
         private TypeModification(Builder builder) : base(builder.Kind, builder.ReadOnly)
         {
@@ -130,12 +157,19 @@ namespace CodeSurgeon
 
         public void Apply(TypeDef type, Action<TypeDef> add)
         {
-            if (!CheckExistence(type, "type", Name)) CheckAttributes(type);
-            else if (IsNested) add(type = new TypeDefUser(Name));
-            else add(type = new TypeDefUser(Namespace, Name));
-            foreach (TypeModification mod in NestedTypes) mod.Apply(type.NestedTypes.FirstOrDefault(nt => nt.Name == mod.Name), AddType);
-            foreach (FieldModification mod in Fields) mod.Apply(type.FindField(mod.Name, mod.Signature, SearchOptions), AddField);
-            foreach (MethodModification mod in Methods) mod.Apply(type.FindMethod(mod.Name, mod.Signature, SearchOptions), AddMethod);
+            try
+            {
+                if (!CheckExistence(type)) CheckAttributes(type);
+                else if (IsNested) add(type = new TypeDefUser(Name));
+                else add(type = new TypeDefUser(Namespace, Name));
+                foreach (TypeModification mod in NestedTypes) mod.Apply(type.NestedTypes.FirstOrDefault(nt => nt.Name == mod.Name), AddType);
+                foreach (FieldModification mod in Fields) mod.Apply(type.FindField(mod.Name), AddField);
+                foreach (MethodModification mod in Methods) mod.Apply(type.FindMethod(mod.Name, mod.Signature, SearchOptions), AddMethod);
+            }
+            catch (ReadOnlyInstallException e)
+            {
+                throw new SymbolInstallException<TypeModification>(this, e);
+            }
 
             void AddType(TypeDef def)
             {
@@ -228,14 +262,20 @@ namespace CodeSurgeon
         }
     }
 
-    public sealed class FieldModification : AbstractModification
+    public sealed class FieldModification : AccessibleModification<FieldModification>
     {
+
         public UTF8String Name { get; }
         public FieldSig Signature { get; }
 
         public FieldAttributes Attributes { get; }
 
+        public override UTF8String FullName => Name;
+        public override SymbolKind SymbolKind => SymbolKind.Field;
+
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel();
+
+        private protected override FieldModification This => this;
 
         private FieldModification(Builder builder) : base(builder.Kind, builder.ReadOnly)
         {
@@ -246,8 +286,21 @@ namespace CodeSurgeon
 
         public void Apply(FieldDef field, Action<FieldDef> add)
         {
-            if (!CheckExistence(field, "field", Name)) CheckAttributes(field);
-            else add(field = new FieldDefUser(Name, Signature, Attributes));
+            try
+            {
+                if (!CheckExistence(field)) CheckDefinition(field);
+                else add(field = new FieldDefUser(Name, Signature, Attributes));
+            }
+            catch (ReadOnlyInstallException e)
+            {
+                throw new SymbolInstallException<FieldModification>(this, e);
+            }
+        }
+
+        private void CheckDefinition(FieldDef field)
+        {
+            if (!Comparer.Equals(field.FieldSig, Signature)) throw new InstallException("existing field has an incompatible signature");
+            CheckAttributes(field);
         }
 
         private void CheckAttributes(FieldDef field)
@@ -261,7 +314,7 @@ namespace CodeSurgeon
             field.Attributes = newAttributes;
         }
 
-        public class Builder : IModificationBuilder<FieldModification>
+        public sealed class Builder : IModificationBuilder<FieldModification>
         {
             public UTF8String Name { get; }
             public FieldSig Signature { get; }
@@ -282,14 +335,19 @@ namespace CodeSurgeon
         }
     }
 
-    public class MethodModification : AbstractModification
+    public sealed class MethodModification : AccessibleModification<MethodModification>
     {
         public UTF8String Name { get; }
         public MethodSig Signature { get; }
 
-        public MethodAttributes Attributes { get; set; }
+        public MethodAttributes Attributes { get; }
+
+        public override UTF8String FullName => Name.Concat("[", Signature.ToString(), "]");
+        public override SymbolKind SymbolKind => SymbolKind.Method;
 
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel();
+
+        private protected override MethodModification This => this;
 
         private MethodModification(Builder builder) : base(builder.Kind, builder.ReadOnly)
         {
@@ -300,8 +358,15 @@ namespace CodeSurgeon
 
         public void Apply(MethodDef method, Action<MethodDef> add)
         {
-            if (CheckExistence(method, "method", Name)) CheckAttributes(method);
-            else add(method = new MethodDefUser(Name, Signature, Attributes));
+            try
+            {
+                if (!CheckExistence(method)) CheckAttributes(method);
+                else add(method = new MethodDefUser(Name, Signature, Attributes));
+            }
+            catch (ReadOnlyInstallException e)
+            {
+                throw new SymbolInstallException<MethodModification>(this, e);
+            }
         }
 
         private void CheckAttributes(MethodDef method)
@@ -315,7 +380,7 @@ namespace CodeSurgeon
             method.Attributes = newAttributes;
         }
 
-        public class Builder : IModificationBuilder<MethodModification>
+        public sealed class Builder : IModificationBuilder<MethodModification>
         {
             public UTF8String Name { get; }
             public MethodSig Signature { get; }
@@ -333,6 +398,90 @@ namespace CodeSurgeon
             }
 
             public MethodModification Build() => new MethodModification(this);
+        }
+    }
+
+    public sealed class PropertyModification : AbstractModification<PropertyModification>
+    {
+        public UTF8String Name { get; }
+        public PropertySig Signature { get; }
+
+        public PropertyAttributes Attributes { get; }
+        public MethodModification GetMethod { get; }
+        public MethodModification SetMethod { get; }
+        public IEnumerable<MethodModification> OtherMethods { get; }
+
+        public override UTF8String FullName => Name.Concat("[", Signature.ToString(), "]");
+        public override SymbolKind SymbolKind => SymbolKind.Property;
+
+        private protected override PropertyModification This => this;
+
+        public PropertyModification(Builder builder) : base(builder.Kind, builder.ReadOnly)
+        {
+            Name = builder.Name;
+            Signature = builder.Signature;
+        }
+
+        public sealed class Builder : IModificationBuilder<PropertyModification>
+        {
+            public UTF8String Name { get; }
+            public PropertySig Signature { get; }
+            public ModificationKind Kind { get; }
+            public bool ReadOnly { get; }
+
+            public PropertyAttributes Attributes { get; set; }
+            public MethodModification.Builder GetMethod { get; }
+            public MethodModification.Builder SetMethod { get; }
+            public IEnumerable<MethodModification.Builder> OtherMethods { get; }
+
+            public Builder(UTF8String name, PropertySig signature, ModificationKind kind, bool readOnly)
+            {
+                Name = name;
+                Signature = signature;
+                Kind = kind;
+                ReadOnly = readOnly;
+            }
+
+            public PropertyModification Build() => new PropertyModification(this);
+        }
+    }
+
+    public sealed class EventModification : AbstractModification<EventModification>
+    {
+        public UTF8String Name { get; }
+        public TypeModification Type { get; }
+
+        public PropertyAttributes Attributes { get; }
+
+        public override UTF8String FullName => Name.Concat("[", Type.FullName, "]");
+        public override SymbolKind SymbolKind => SymbolKind.Event;
+
+        private protected override EventModification This => this;
+
+        public EventModification(Builder builder) : base(builder.Kind, builder.ReadOnly)
+        {
+            Name = builder.Name;
+            Type = builder.Type;
+        }
+
+        public sealed class Builder : IModificationBuilder<EventModification>
+        {
+            public UTF8String Name { get; }
+            public TypeModification Type { get; }
+            public ModificationKind Kind { get; }
+            public bool ReadOnly { get; }
+
+            public PropertyAttributes Attributes { get; set; }
+
+            public Builder(UTF8String name, TypeModification type, ModificationKind kind, bool readOnly)
+            {
+                Name = name;
+                Type = type;
+                Kind = kind;
+                ReadOnly = readOnly;
+            }
+
+            public EventModification Build() => new EventModification(this);
         }
     }
 }

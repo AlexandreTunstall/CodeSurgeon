@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 
@@ -58,6 +59,19 @@ namespace CodeSurgeon
         public static void Replace(this MethodAttributes replacement, ref MethodAttributes original, MethodAttributes mask) => original = original & ~mask | replacement & mask;
 
         public static bool IsValidFileName(this string name) => !string.IsNullOrWhiteSpace(name) && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+
+        public static UTF8String Concat(this UTF8String first, params UTF8String[] rest)
+        {
+            byte[] data = new byte[first.DataLength + rest.Sum(s => s.DataLength)];
+            int index = first.DataLength;
+            Array.Copy(first.Data, data, index);
+            foreach (UTF8String value in rest)
+            {
+                Array.Copy(value.Data, 0, data, index, value.DataLength);
+                index += value.DataLength;
+            }
+            return new UTF8String(data);
+        }
     }
 
     internal static class InternalExtensions

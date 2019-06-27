@@ -58,7 +58,7 @@ namespace " + ReadOnlyNamespace + @"
             installer.Install();
         }
 
-        [TestMethod, ExpectedException(typeof(InstallException), "expected install to fail", AllowDerivedTypes = false)]
+        [TestMethod, ExpectedException(typeof(SymbolInstallException<TypeModification>), "expected install to fail", AllowDerivedTypes = false)]
         public void TestDependencyMissingType()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
@@ -86,16 +86,16 @@ namespace " + ReadOnlyNamespace + @"
             installer.Install();
         }
 
-        [TestMethod, ExpectedException(typeof(InstallException), "expected install to fail", AllowDerivedTypes = false)]
+        [TestMethod, ExpectedException(typeof(SymbolInstallException<TypeModification>), "expected install to fail", AllowDerivedTypes = false)]
         public void TestDependencyMissingNestedType()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
             StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, MissingMember, ModificationKind.FailIfMissing, true)
+            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
             {
                 Attributes = TypeAttributes.BeforeFieldInit
             };
-            type.NestedType(NestedClass, ModificationKind.FailIfMissing);
+            type.NestedType(MissingMember, ModificationKind.FailIfMissing);
             patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
@@ -116,7 +116,7 @@ namespace " + ReadOnlyNamespace + @"
             installer.Install();
         }
 
-        [TestMethod, ExpectedException(typeof(InstallException), "expected install to fail", AllowDerivedTypes = false)]
+        [TestMethod, ExpectedException(typeof(SymbolInstallException<FieldModification>), "expected install to fail", AllowDerivedTypes = false)]
         public void TestDependencyMissingField()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
@@ -125,7 +125,37 @@ namespace " + ReadOnlyNamespace + @"
             {
                 Attributes = TypeAttributes.BeforeFieldInit
             };
-            type.Field(MissingMember, new FieldSig(new ClassSig(new TypeRefUser(null, "System", "String", installer))), ModificationKind.FailIfMissing);
+            type.Field(MissingMember, new FieldSig(new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
+            patch.Add(type.Build());
+            installer.Add(patch);
+            installer.Install();
+        }
+
+        [TestMethod]
+        public void TestDependencyExistingMethod()
+        {
+            PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
+            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
+            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
+            {
+                Attributes = TypeAttributes.BeforeFieldInit
+            };
+            type.Method(NopMethod, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "Void", installer), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
+            patch.Add(type.Build());
+            installer.Add(patch);
+            installer.Install();
+        }
+
+        [TestMethod, ExpectedException(typeof(SymbolInstallException<MethodModification>), "expected install to fail", AllowDerivedTypes = false)]
+        public void TestDependencyMissingMethod()
+        {
+            PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
+            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
+            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
+            {
+                Attributes = TypeAttributes.BeforeFieldInit
+            };
+            type.Method(MissingMember, new MethodSig(CallingConvention.ThisCall, 0u, new ClassSig(new TypeRefUser(null, "System", "Void"))), ModificationKind.FailIfMissing);
             patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();

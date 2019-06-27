@@ -34,7 +34,7 @@ namespace CodeSurgeon
                 patch.Patch(target);
                 Modules.Save(target);
             }
-            catch (InstallException e)
+            catch (Exception e) when (!(e is InstallException))
             {
                 throw new InstallException("failed to install " + patch.PatchName, e);
             }
