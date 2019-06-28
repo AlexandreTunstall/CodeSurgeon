@@ -53,14 +53,19 @@ namespace CodeSurgeon
         public static bool Equals(this TypeAttributes a, TypeAttributes b, TypeAttributes mask) => (a & mask) == (b & mask);
         public static bool Equals(this FieldAttributes a, FieldAttributes b, FieldAttributes mask) => (a & mask) == (b & mask);
         public static bool Equals(this MethodAttributes a, MethodAttributes b, MethodAttributes mask) => (a & mask) == (b & mask);
+        public static bool Equals(this PropertyAttributes a, PropertyAttributes b, PropertyAttributes mask) => (a & mask) == (b & mask);
+        public static bool Equals(this EventAttributes a, EventAttributes b, EventAttributes mask) => (a & mask) == (b & mask);
 
         public static void Replace(this TypeAttributes replacement, ref TypeAttributes original, TypeAttributes mask) => original = original & ~mask | replacement & mask;
         public static void Replace(this FieldAttributes replacement, ref FieldAttributes original, FieldAttributes mask) => original = original & ~mask | replacement & mask;
         public static void Replace(this MethodAttributes replacement, ref MethodAttributes original, MethodAttributes mask) => original = original & ~mask | replacement & mask;
+        public static void Replace(this PropertyAttributes replacement, ref PropertyAttributes original, PropertyAttributes mask) => original = original & ~mask | replacement & mask;
+        public static void Replace(this EventAttributes replacement, ref EventAttributes original, EventAttributes mask) => original = original & ~mask | replacement & mask;
 
         public static bool IsValidFileName(this string name) => !string.IsNullOrWhiteSpace(name) && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 
-        public static UTF8String Concat(this UTF8String first, params UTF8String[] rest)
+        public static UTF8String Concat(this UTF8String first, params UTF8String[] rest) => first.Concat((IEnumerable<UTF8String>)rest);
+        public static UTF8String Concat(this UTF8String first, IEnumerable<UTF8String> rest)
         {
             byte[] data = new byte[first.DataLength + rest.Sum(s => s.DataLength)];
             int index = first.DataLength;

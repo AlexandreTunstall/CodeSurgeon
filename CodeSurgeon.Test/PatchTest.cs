@@ -49,11 +49,8 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyExistingType()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            patch.Add(new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            }.Build());
+            StandardPatch patch = new StandardPatch("TestPatch");
+            patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing).Attributes = TypeAttributes.BeforeFieldInit;
             installer.Add(patch);
             installer.Install();
         }
@@ -62,11 +59,8 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyMissingType()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            patch.Add(new TypeModification.Builder(MissingNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            }.Build());
+            StandardPatch patch = new StandardPatch("TestPatch");
+            patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(MissingNamespace, NormalClass, ModificationKind.FailIfMissing).Attributes = TypeAttributes.BeforeFieldInit;
             installer.Add(patch);
             installer.Install();
         }
@@ -75,13 +69,10 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyExistingNestedType()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            };
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
             type.NestedType(NestedClass, ModificationKind.FailIfMissing).Attributes = TypeAttributes.BeforeFieldInit;
-            patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
         }
@@ -90,13 +81,10 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyMissingNestedType()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            };
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
             type.NestedType(MissingMember, ModificationKind.FailIfMissing);
-            patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
         }
@@ -105,13 +93,10 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyExistingField()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            };
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
             type.Field(StringField, new FieldSig(new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
-            patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
         }
@@ -120,13 +105,10 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyMissingField()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            };
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
             type.Field(MissingMember, new FieldSig(new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
-            patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
         }
@@ -135,13 +117,10 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyExistingMethod()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            };
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
             type.Method(NopMethod, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "Void", installer), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
-            patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
         }
@@ -150,13 +129,10 @@ namespace " + ReadOnlyNamespace + @"
         public void TestDependencyMissingMethod()
         {
             PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
-            StandardPatch patch = new StandardPatch("TestPatch", module.Name, Enumerable.Empty<UTF8String>());
-            TypeModification.Builder type = new TypeModification.Builder(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing, true)
-            {
-                Attributes = TypeAttributes.BeforeFieldInit
-            };
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
             type.Method(MissingMember, new MethodSig(CallingConvention.ThisCall, 0u, new ClassSig(new TypeRefUser(null, "System", "Void"))), ModificationKind.FailIfMissing);
-            patch.Add(type.Build());
             installer.Add(patch);
             installer.Install();
         }

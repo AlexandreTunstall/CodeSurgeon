@@ -8,61 +8,40 @@ namespace CodeSurgeon
     public interface IPatch
     {
         string PatchName { get; }
-        UTF8String TargetModule { get; }
-        IEnumerable<UTF8String> RequiredModules { get; }
+        IEnumerable<ModuleModification> Modules { get; }
 
-        void Required(ModuleDef module);
-        void Patch(ModuleDef module);
+        void Patch(ISearchContext context);
     }
 
     public abstract class AbstractPatch : IPatch
     {
         public string PatchName { get; }
-        public UTF8String TargetModule { get; }
-        public IEnumerable<UTF8String> RequiredModules { get; }
+        public abstract IEnumerable<ModuleModification> Modules { get; }
 
-        public AbstractPatch(string patchName, UTF8String targetModule, IEnumerable<UTF8String> requiredModules)
+        public AbstractPatch(string patchName) => PatchName = patchName;
+
+        public virtual void Patch(ISearchContext context)
         {
-            PatchName = patchName;
-            TargetModule = targetModule;
-            RequiredModules = requiredModules;
+            foreach (ModuleModification mod in Modules) mod.Apply(context);
         }
-
-        public abstract void Required(ModuleDef module);
-        public abstract void Patch(ModuleDef module);
     }
 
     public class StandardPatch : AbstractPatch
     {
-        protected readonly List<TypeModification> typeMods = new List<TypeModification>();
+        public override IEnumerable<ModuleModification> Modules => modules.Values;
 
-        public StandardPatch(string patchName, UTF8String targetModule, IEnumerable<UTF8String> requiredModules) : base(patchName, targetModule, requiredModules) { }
+        protected readonly Dictionary<UTF8String, ModuleModification> modules = new Dictionary<UTF8String, ModuleModification>();
 
-        public void Add(TypeModification mod)
+        public StandardPatch(string patchName) : base(patchName) { }
+
+        public ModuleModification Module(UTF8String name, ModificationKind kind, bool readOnly)
         {
-            if (mod.IsNested) throw new ArgumentException("attempt to add nested type to patch, add the root declaring type instead");
-            typeMods.Add(mod);
-        }
-
-        public override void Required(ModuleDef module)
-        {
-            List<TypeModification> done = new List<TypeModification>();
-            foreach (TypeModification mod in typeMods.Where(m => m.ReadOnly))
+            lock (modules)
             {
-                TypeDef type = module.Find(new TypeRefUser(module, mod.Namespace, mod.Name));
-                if (type == null) continue;
-                mod.Apply(type, def => throw new NotSupportedException("attempt to add a type to a read-only module"));
-                done.Add(mod);
-            }
-            typeMods.RemoveAll(done.Contains);
-        }
-
-        public override void Patch(ModuleDef module)
-        {
-            foreach (TypeModification mod in typeMods)
-            {
-                TypeDef type = module.Find(new TypeRefUser(module, mod.Namespace, mod.Name));
-                mod.Apply(type, module.Types.Add);
+                if (!modules.TryGetValue(name, out ModuleModification module)) modules.Add(name, module = new ModuleModification(name, kind, readOnly));
+                else if (module.Kind != kind) throw new ArgumentException("existing module " + name.String + " has kind " + module.Kind + " but kind " + kind + " was requested");
+                else if (module.ReadOnly != readOnly) throw new ArgumentException("existing module " + name.String + " is " + (module.ReadOnly ? "read-only" : "writable") + " but " + (readOnly ? "read-only" : "writable") + " was requested");
+                return module;
             }
         }
     }

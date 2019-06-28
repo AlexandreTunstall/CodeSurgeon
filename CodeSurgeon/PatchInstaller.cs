@@ -6,13 +6,11 @@ using System.Text;
 
 namespace CodeSurgeon
 {
-    public class PatchInstaller : IResolutionScope
+    public class PatchInstaller : CachedSearchContext, IResolutionScope
     {
-        public IModuleSource Modules { get; }
-
         protected readonly List<IPatch> patches = new List<IPatch>();
 
-        public PatchInstaller(IModuleSource modules) => Modules = modules;
+        public PatchInstaller(IModuleSource modules) : base(modules) { }
 
         public void Add(IPatch patch)
         {
@@ -23,16 +21,14 @@ namespace CodeSurgeon
         public virtual void Install()
         {
             lock (patches) foreach (IPatch patch in patches) InstallPatch(patch);
+            foreach (ModuleDef module in modules.Values) Modules.Save(module);
         }
 
         protected virtual void InstallPatch(IPatch patch)
         {
             try
             {
-                foreach (UTF8String name in patch.RequiredModules) patch.Required(Modules.Load(name));
-                ModuleDef target = Modules.Load(patch.TargetModule);
-                patch.Patch(target);
-                Modules.Save(target);
+                patch.Patch(this);
             }
             catch (Exception e) when (!(e is InstallException))
             {
