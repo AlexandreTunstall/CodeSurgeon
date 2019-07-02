@@ -17,8 +17,9 @@ namespace CodeSurgeon.Test
         private const string NormalClass = "NormalClass";
         private const string NestedClass = "NestedClass";
         private const string MissingMember = "DoesNotExist";
-        private const string StringField = "someString";
+        private const string StringField = "someStringField";
         private const string NopMethod = "Nop";
+        private const string StringProperty = "SomeStringProperty";
 
         private static ModuleDef module;
         private static MemoryStream stream;
@@ -35,6 +36,7 @@ namespace " + ReadOnlyNamespace + @"
         class " + NestedClass + @" { }
         string " + StringField + @";
         void " + NopMethod + @"() { }
+        string " + StringProperty + @" { get; set; }
     }
 }") }, new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) }, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)).Emit(stream);
             if (!result.Success) Assert.Inconclusive("failed to emit test assembly", result.Diagnostics);
@@ -132,7 +134,33 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            type.Method(MissingMember, new MethodSig(CallingConvention.ThisCall, 0u, new ClassSig(new TypeRefUser(null, "System", "Void"))), ModificationKind.FailIfMissing);
+            type.Method(MissingMember, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "Void", installer), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
+            installer.Add(patch);
+            installer.Install();
+        }
+
+        [TestMethod]
+        public void TestDependencyExistingProperty()
+        {
+            PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
+            MethodModification propertyGet = type.Method("get_" + StringProperty, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
+            propertyGet.Attributes = MethodAttributes.HideBySig | MethodAttributes.SpecialName;
+            type.Property(StringProperty, new PropertySig(true, new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing).Get(propertyGet);
+            installer.Add(patch);
+            installer.Install();
+        }
+
+        [TestMethod, ExpectedException(typeof(SymbolInstallException<PropertyModification>), "expected install to fail", AllowDerivedTypes = false)]
+        public void TestDependencyMissingProperty()
+        {
+            PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
+            StandardPatch patch = new StandardPatch("TestPatch");
+            TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
+            type.Attributes = TypeAttributes.BeforeFieldInit;
+            type.Property(MissingMember, new PropertySig(true, new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
             installer.Add(patch);
             installer.Install();
         }

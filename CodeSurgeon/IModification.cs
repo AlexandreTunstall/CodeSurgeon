@@ -6,15 +6,11 @@ using System.Text;
 
 namespace CodeSurgeon
 {
-    public interface IModification
+    public interface IModification<out TSymbol> where TSymbol : class, IDnlibDef
     {
         ModificationKind Kind { get; }
         UTF8String FullName { get; }
         SymbolKind SymbolKind { get; }
-    }
-
-    public interface IModification<out TSymbol> : IModification where TSymbol : class, IDnlibDef
-    {
         TSymbol Resolve(ISearchContext context);
         void Apply(ISearchContext context);
     }
@@ -208,6 +204,8 @@ namespace CodeSurgeon
         public IEnumerable<TypeModification> NestedTypes { get; }
         public IEnumerable<FieldModification> Fields { get; }
         public IEnumerable<MethodModification> Methods => methods.Values;
+        public IEnumerable<PropertyModification> Properties { get; }
+        public IEnumerable<EventModification> Events { get; }
 
         public TypeAttributes Attributes { get; set; }
 
@@ -234,23 +232,24 @@ namespace CodeSurgeon
 
         private protected override TypeModification This => this;
 
-        private readonly Dictionary<UTF8String, IModification> members = new Dictionary<UTF8String, IModification>();
+        private readonly Dictionary<UTF8String, IModification<IDnlibDef>> members = new Dictionary<UTF8String, IModification<IDnlibDef>>();
         private readonly Dictionary<(UTF8String, MethodSig), MethodModification> methods = new Dictionary<(UTF8String, MethodSig), MethodModification>(NamedMethodComparer);
 
         internal TypeModification(ModuleModification module, UTF8String @namespace, UTF8String name, ModificationKind kind, bool readOnly) : this(null, name, kind, readOnly)
         {
-            if (@namespace is null) throw new ArgumentNullException("namespace", "namespace cannot be null, use an empty string for the default namespace instead");
+            if (@namespace is null) throw new ArgumentNullException(nameof(@namespace), nameof(@namespace) + " cannot be null, use an empty string for the default namespace instead");
             Module = module;
             Namespace = @namespace;
-            Comparer.Equals((MethodSig)null, (MethodSig)null);
         }
 
         private TypeModification(TypeModification declaringType, UTF8String name, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
         {
-            if (name is null) throw new ArgumentNullException("name");
+            if (name is null) throw new ArgumentNullException(nameof(name));
             Name = name;
             NestedTypes = members.Values.OfType<TypeModification>();
             Fields = members.Values.OfType<FieldModification>();
+            Properties = members.Values.OfType<PropertyModification>();
+            Events = members.Values.OfType<EventModification>();
         }
 
         public TypeModification NestedType(UTF8String name, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new TypeModification(this, n, k, ReadOnly));
@@ -263,6 +262,8 @@ namespace CodeSurgeon
                 return method;
             }
         }
+        public PropertyModification Property(UTF8String name, PropertySig signature, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new PropertyModification(this, n, signature, k, ReadOnly));
+        public EventModification Event(UTF8String name, TypeModification type, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new EventModification(this, n, type, k, ReadOnly));
 
         public override TypeDef Resolve(ISearchContext context)
         {
@@ -297,9 +298,7 @@ namespace CodeSurgeon
             {
                 throw new SymbolInstallException<TypeModification>(this, e);
             }
-            foreach (TypeModification mod in NestedTypes) mod.Apply(context);
-            foreach (FieldModification mod in Fields) mod.Apply(context);
-            foreach (MethodModification mod in Methods) mod.Apply(context);
+            foreach (IModification<IDnlibDef> mod in NestedTypes.Concat<IModification<IDnlibDef>>(Fields).Concat(Methods).Concat(Properties).Concat(Events)) mod.Apply(context);
         }
 
         private void CheckAttributes(TypeDef type)
@@ -313,9 +312,9 @@ namespace CodeSurgeon
             type.Attributes = newAttributes;
         }
 
-        private TMod GetOrCreate<TMod>(UTF8String name, ModificationKind kind, Func<UTF8String, ModificationKind, TMod> factory) where TMod : IModification
+        private TMod GetOrCreate<TMod>(UTF8String name, ModificationKind kind, Func<UTF8String, ModificationKind, TMod> factory) where TMod : IModification<IDnlibDef>
         {
-            IModification existing;
+            IModification<IDnlibDef> existing;
             lock (members)
             {
                 if (!members.TryGetValue(name, out existing))
@@ -471,8 +470,8 @@ namespace CodeSurgeon
         public PropertySig Signature { get; }
 
         public PropertyAttributes Attributes { get; set; }
-        public MethodModification GetMethod { get; set; }
-        public MethodModification SetMethod { get; set; }
+        public IEnumerable<MethodModification> GetMethods => getMethods;
+        public IEnumerable<MethodModification> SetMethods => setMethods;
         public IEnumerable<MethodModification> OtherMethods => otherMethods;
 
         public override UTF8String FullName => Name.Concat("[", Signature.ToString(), "]");
@@ -480,7 +479,9 @@ namespace CodeSurgeon
 
         private protected override PropertyModification This => this;
 
-        private IList<MethodModification> otherMethods = new List<MethodModification>();
+        private readonly ISet<MethodModification> getMethods = new HashSet<MethodModification>();
+        private readonly ISet<MethodModification> setMethods = new HashSet<MethodModification>();
+        private readonly ISet<MethodModification> otherMethods = new HashSet<MethodModification>();
 
         internal PropertyModification(TypeModification declaringType, UTF8String name, PropertySig signature, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
         {
@@ -488,6 +489,8 @@ namespace CodeSurgeon
             Signature = signature;
         }
 
+        public void Get(MethodModification method) => getMethods.Add(method);
+        public void Set(MethodModification method) => setMethods.Add(method);
         public void Other(MethodModification method) => otherMethods.Add(method);
 
         public override PropertyDef Resolve(ISearchContext context)
@@ -515,6 +518,9 @@ namespace CodeSurgeon
             {
                 PropertyDef property = context.Get(this);
                 CheckAttributes(property);
+                context.CheckAccessors(GetMethods, property.GetMethods, BeginModify);
+                context.CheckAccessors(SetMethods, property.SetMethods, BeginModify);
+                context.CheckAccessors(OtherMethods, property.OtherMethods, BeginModify);
             }
             catch (ReadOnlyInstallException e)
             {
@@ -539,13 +545,17 @@ namespace CodeSurgeon
         public TypeModification Type { get; }
 
         public EventAttributes Attributes { get; set; }
+        public MethodModification AddMethod { get; set; }
+        public MethodModification RemoveMethod { get; set; }
+        public MethodModification InvokeMethod { get; set; }
+        public IEnumerable<MethodModification> OtherMethods => otherMethods;
 
         public override UTF8String FullName => Name.Concat("[", Type.FullName, "]");
         public override SymbolKind SymbolKind => SymbolKind.Event;
 
         private protected override EventModification This => this;
 
-        private IList<MethodModification> otherMethods = new List<MethodModification>();
+        private ISet<MethodModification> otherMethods = new HashSet<MethodModification>();
 
         internal EventModification(TypeModification declaringType, UTF8String name, TypeModification type, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
         {
@@ -581,6 +591,23 @@ namespace CodeSurgeon
             {
                 EventDef @event = context.Get(this);
                 CheckAttributes(@event);
+                MethodDef desired;
+                if (AddMethod != null && (desired = context.Get(AddMethod)) != @event.AddMethod)
+                {
+                    BeginModify();
+                    @event.AddMethod = desired;
+                }
+                if (RemoveMethod != null && (desired = context.Get(RemoveMethod)) != @event.RemoveMethod)
+                {
+                    BeginModify();
+                    @event.RemoveMethod = desired;
+                }
+                if (InvokeMethod != null && (desired = context.Get(InvokeMethod)) != @event.InvokeMethod)
+                {
+                    BeginModify();
+                    @event.InvokeMethod = desired;
+                }
+                context.CheckAccessors(OtherMethods, @event.OtherMethods, BeginModify);
             }
             catch (ReadOnlyInstallException e)
             {

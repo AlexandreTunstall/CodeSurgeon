@@ -1,4 +1,5 @@
-﻿using System;
+﻿using dnlib.DotNet;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -21,15 +22,15 @@ namespace CodeSurgeon
 
     public class SymbolInstallException : InstallException
     {
-        public IModification Modification { get; }
+        public IModification<IDnlibDef> Modification { get; }
 
-        public SymbolInstallException(IModification mod) : base(GetMessage(mod)) => Modification = mod;
-        public SymbolInstallException(IModification mod, Exception cause) : base(GetMessage(mod), cause) => Modification = mod;
+        public SymbolInstallException(IModification<IDnlibDef> mod) : base(GetMessage(mod)) => Modification = mod;
+        public SymbolInstallException(IModification<IDnlibDef> mod, Exception cause) : base(GetMessage(mod), cause) => Modification = mod;
 
-        private static string GetMessage(IModification mod) => "failed to install " + mod.SymbolKind.ToString().ToLower() + " " + mod.FullName;
+        private static string GetMessage(IModification<IDnlibDef> mod) => "failed to install " + mod.SymbolKind.ToString().ToLower() + " " + mod.FullName;
     }
 
-    public class SymbolInstallException<TSymbol> : SymbolInstallException where TSymbol : IModification
+    public class SymbolInstallException<TSymbol> : SymbolInstallException where TSymbol : IModification<IDnlibDef>
     {
         public new TSymbol Modification { get; }
 

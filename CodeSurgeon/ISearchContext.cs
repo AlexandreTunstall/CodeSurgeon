@@ -16,7 +16,7 @@ namespace CodeSurgeon
         public IModuleSource Modules { get; }
 
         protected readonly Dictionary<UTF8String, ModuleDef> modules = new Dictionary<UTF8String, ModuleDef>();
-        protected readonly Dictionary<IModification, IDnlibDef> symbols = new Dictionary<IModification, IDnlibDef>();
+        protected readonly Dictionary<IModification<IDnlibDef>, IDnlibDef> symbols = new Dictionary<IModification<IDnlibDef>, IDnlibDef>();
 
         public CachedSearchContext(IModuleSource modules) => Modules = modules;
 

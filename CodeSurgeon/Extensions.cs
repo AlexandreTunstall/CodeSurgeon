@@ -81,6 +81,20 @@ namespace CodeSurgeon
 
     internal static class InternalExtensions
     {
+        public static void CheckAccessors(this ISearchContext context, IEnumerable<MethodModification> desired, IList<MethodDef> existing, Action beginModify)
+        {
+            bool modified = false;
+            foreach (MethodDef method in desired.Select(context.Get).Except(existing))
+            {
+                if (!modified)
+                {
+                    beginModify();
+                    modified = true;
+                }
+                existing.Add(method);
+            }
+        }
+
         public static AccessLevel GetAccessLevel(this TypeAttributes attributes, bool nested)
         {
             if (!nested)
