@@ -39,7 +39,7 @@ namespace " + ReadOnlyNamespace + @"
         string " + StringProperty + @" { get; set; }
     }
 }") }, new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) }, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)).Emit(stream);
-            if (!result.Success) Assert.Inconclusive("failed to emit test assembly", result.Diagnostics);
+            if (!result.Success) Assert.Inconclusive("failed to emit test assembly");
             stream.Position = 0L;
             module = ModuleDefMD.Load(stream);
         }

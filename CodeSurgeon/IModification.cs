@@ -195,6 +195,8 @@ namespace CodeSurgeon
 
     public sealed class TypeModification : AccessibleModification<TypeDef, TypeModification>
     {
+        private const TypeAttributes PreservedAttributes = TypeAttributes.SpecialName | TypeAttributes.RTSpecialName;
+
         private static readonly IEqualityComparer<(UTF8String name, MethodSig sig)> NamedMethodComparer = new NamedComparer<MethodSig>(Comparer.Equals);
 
         public ModuleModification Module { get; }
@@ -208,6 +210,8 @@ namespace CodeSurgeon
         public IEnumerable<EventModification> Events { get; }
 
         public TypeAttributes Attributes { get; set; }
+        public TypeModification BaseType { get; set; }
+        public IEnumerable<TypeModification> BaseInterfaces { get; }
 
         public override UTF8String FullName
         {
@@ -222,7 +226,16 @@ namespace CodeSurgeon
                     tokens.Add("/");
                 }
                 tokens.Add(current.Name);
-                return current.Namespace.Concat(tokens);
+                if (current.Namespace.DataLength > 0)
+                {
+                    tokens.Add(".");
+                    tokens.Add(current.Namespace);
+                }
+                tokens.Add("]");
+                tokens.Add(current.Module.FullName);
+                tokens.Add("[");
+                tokens.Reverse();
+                return UTF8String.Empty.Concat(tokens);
             }
         }
         public override SymbolKind SymbolKind => SymbolKind.Type;
@@ -293,6 +306,15 @@ namespace CodeSurgeon
             {
                 TypeDef type = context.Get(this);
                 CheckAttributes(type);
+                if (BaseType != null)
+                {
+                    TypeDef desiredBase = context.Get(BaseType);
+                    if (!Comparer.Equals(type.BaseType, desiredBase))
+                    {
+                        BeginModify();
+                        type.BaseType = desiredBase;
+                    }
+                }
             }
             catch (ReadOnlyInstallException e)
             {
@@ -303,9 +325,10 @@ namespace CodeSurgeon
 
         private void CheckAttributes(TypeDef type)
         {
-            TypeAttributes newAttributes = type.Attributes;
+            TypeAttributes newAttributes = type.Attributes | PreservedAttributes & Attributes;
             TypeAttributes mask = TypeAttributes.VisibilityMask;
             if (!CheckAccessLevel(type.Attributes.GetAccessLevel(IsNested))) Attributes.Replace(ref newAttributes, mask);
+            mask |= PreservedAttributes;
             if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
             if (type.Attributes == newAttributes) return;
             BeginModify();
@@ -332,12 +355,14 @@ namespace CodeSurgeon
 
     public sealed class FieldModification : AccessibleModification<FieldDef, FieldModification>
     {
+        private const FieldAttributes PreservedAttributes = FieldAttributes.SpecialName | FieldAttributes.RTSpecialName | FieldAttributes.HasFieldMarshal | FieldAttributes.HasDefault;
+
         public UTF8String Name { get; }
         public FieldSig Signature { get; }
 
         public FieldAttributes Attributes { get; set; }
 
-        public override UTF8String FullName => Name;
+        public override UTF8String FullName => DeclaringType.FullName.Concat(".", Name);
         public override SymbolKind SymbolKind => SymbolKind.Field;
 
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel();
@@ -390,9 +415,10 @@ namespace CodeSurgeon
 
         private void CheckAttributes(FieldDef field)
         {
-            FieldAttributes newAttributes = field.Attributes;
+            FieldAttributes newAttributes = field.Attributes | PreservedAttributes & Attributes;
             FieldAttributes mask = FieldAttributes.FieldAccessMask;
             if (!CheckAccessLevel(field.Attributes.GetAccessLevel())) Attributes.Replace(ref newAttributes, mask);
+            mask |= PreservedAttributes;
             if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
             if (field.Attributes == newAttributes) return;
             BeginModify();
@@ -402,12 +428,14 @@ namespace CodeSurgeon
 
     public sealed class MethodModification : AccessibleModification<MethodDef, MethodModification>
     {
+        private const MethodAttributes PreservedAttributes = MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
+
         public UTF8String Name { get; }
         public MethodSig Signature { get; }
 
         public MethodAttributes Attributes { get; set; }
 
-        public override UTF8String FullName => Name.Concat("[", Signature.ToString(), "]");
+        public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Signature.ToString(), "]");
         public override SymbolKind SymbolKind => SymbolKind.Method;
 
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel();
@@ -454,9 +482,10 @@ namespace CodeSurgeon
 
         private void CheckAttributes(MethodDef method)
         {
-            MethodAttributes newAttributes = method.Attributes;
+            MethodAttributes newAttributes = method.Attributes | PreservedAttributes & Attributes;
             MethodAttributes mask = MethodAttributes.MemberAccessMask;
             if (!CheckAccessLevel(method.Attributes.GetAccessLevel())) Attributes.Replace(ref newAttributes, mask);
+            mask |= PreservedAttributes;
             if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
             if (method.Attributes == newAttributes) return;
             BeginModify();
@@ -466,6 +495,8 @@ namespace CodeSurgeon
 
     public sealed class PropertyModification : MemberModification<PropertyDef, PropertyModification>
     {
+        private const PropertyAttributes PreservedAttributes = PropertyAttributes.SpecialName | PropertyAttributes.RTSpecialName | PropertyAttributes.HasDefault;
+
         public UTF8String Name { get; }
         public PropertySig Signature { get; }
 
@@ -474,7 +505,7 @@ namespace CodeSurgeon
         public IEnumerable<MethodModification> SetMethods => setMethods;
         public IEnumerable<MethodModification> OtherMethods => otherMethods;
 
-        public override UTF8String FullName => Name.Concat("[", Signature.ToString(), "]");
+        public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Signature.ToString(), "]");
         public override SymbolKind SymbolKind => SymbolKind.Property;
 
         private protected override PropertyModification This => this;
@@ -530,8 +561,8 @@ namespace CodeSurgeon
 
         private void CheckAttributes(PropertyDef property)
         {
-            PropertyAttributes newAttributes = property.Attributes;
-            PropertyAttributes mask = default;
+            PropertyAttributes newAttributes = property.Attributes | PreservedAttributes & Attributes;
+            PropertyAttributes mask = PreservedAttributes;
             if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
             if (property.Attributes == newAttributes) return;
             BeginModify();
@@ -541,6 +572,8 @@ namespace CodeSurgeon
 
     public sealed class EventModification : MemberModification<EventDef, EventModification>
     {
+        private const EventAttributes PreservedAttributes = EventAttributes.SpecialName | EventAttributes.RTSpecialName;
+
         public UTF8String Name { get; }
         public TypeModification Type { get; }
 
@@ -550,7 +583,7 @@ namespace CodeSurgeon
         public MethodModification InvokeMethod { get; set; }
         public IEnumerable<MethodModification> OtherMethods => otherMethods;
 
-        public override UTF8String FullName => Name.Concat("[", Type.FullName, "]");
+        public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Type.FullName, "]");
         public override SymbolKind SymbolKind => SymbolKind.Event;
 
         private protected override EventModification This => this;
@@ -617,7 +650,7 @@ namespace CodeSurgeon
 
         private void CheckAttributes(EventDef @event)
         {
-            EventAttributes newAttributes = @event.Attributes;
+            EventAttributes newAttributes = @event.Attributes | PreservedAttributes & Attributes;
             EventAttributes mask = default;
             if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
             if (@event.Attributes == newAttributes) return;
