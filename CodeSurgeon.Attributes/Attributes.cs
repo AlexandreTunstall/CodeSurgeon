@@ -1,23 +1,40 @@
 ﻿using System;
+using System.Text;
 
 namespace CodeSurgeon.Attributes
 {
+    [AttributeUsage(AttributeTargets.Module)]
+    public class RequiredAttribute : Attribute
+    {
+        public byte[] Assembly { get; }
+        public bool ReadOnly { get; }
+
+        public RequiredAttribute(string assembly, bool readOnly) : this(Encoding.UTF8.GetBytes(assembly), readOnly) { }
+        public RequiredAttribute(byte[] assembly, bool readOnly)
+        {
+            Assembly = assembly;
+            ReadOnly = readOnly;
+        }
+    }
+
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Enum | AttributeTargets.Delegate | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Property | AttributeTargets.Event)]
     public class NameAttribute : Attribute
     {
-        public string Value { get; }
-        public string Assembly { get; }
+        public byte[] Value { get; }
+        public byte[] Assembly { get; }
 
-        public NameAttribute(string value) => Value = value;
-        public NameAttribute(Type type) => Value = type.FullName.Replace('+', '/');
+        public NameAttribute(string value) : this(Encoding.UTF8.GetBytes(value)) { }
+        public NameAttribute(byte[] value) => Value = value;
+        public NameAttribute(Type type) : this(type.FullName.Replace('+', '/')) => Assembly = Encoding.UTF8.GetBytes(type.Assembly.GetName().Name);
     }
 
     [AttributeUsage(AttributeTargets.Module | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Enum | AttributeTargets.Delegate)]
     public class FromAttribute : Attribute
     {
-        public string Assembly { get; }
+        public byte[] Assembly { get; }
 
-        public FromAttribute(string assembly) => Assembly = assembly;
+        public FromAttribute(string assembly) : this(Encoding.UTF8.GetBytes(assembly)) { }
+        public FromAttribute(byte[] assembly) => Assembly = assembly;
     }
 
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Enum | AttributeTargets.Delegate | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Property | AttributeTargets.Event)]

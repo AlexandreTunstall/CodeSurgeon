@@ -31,6 +31,7 @@ namespace CodeSurgeon.Test
             EmitResult result = CSharpCompilation.Create("TestModule", new[] { CSharpSyntaxTree.ParseText(@"
 namespace " + ReadOnlyNamespace + @"
 {
+[TestClass(typeof(NormalClass))]
     class " + NormalClass + @"
     {
         class " + NestedClass + @" { }
@@ -38,6 +39,7 @@ namespace " + ReadOnlyNamespace + @"
         void " + NopMethod + @"() { }
         string " + StringProperty + @" { get; set; }
     }
+[System.AttributeUsage(System.AttributeTargets.All)]class TestClass:System.Attribute{public TestClass(System.Type type){}}
 }") }, new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) }, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)).Emit(stream);
             if (!result.Success) Assert.Inconclusive("failed to emit test assembly");
             stream.Position = 0L;
