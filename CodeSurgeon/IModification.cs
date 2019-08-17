@@ -479,18 +479,19 @@ namespace CodeSurgeon
                 switch (Body)
                 {
                     case CilBody cilBody:
-                        Common();
-                        method.Body = CopyCilBody(method.Module, cilBody, context);
+                        Common(out ITransformContext tc);
+                        method.Body = CopyCilBody(method.Module, cilBody, tc);
                         break;
                     case NativeMethodBody nativeBody:
-                        Common();
+                        Common(out _);
                         break;
                 }
 
-                void Common()
+                void Common(out ITransformContext transformContext)
                 {
                     BeginModify();
                     method.FreeMethodBody();
+                    transformContext = new StandardTransformContext(context, method);
                 }
             }
             catch (ReadOnlyInstallException e)
@@ -511,7 +512,7 @@ namespace CodeSurgeon
             method.Attributes = newAttributes;
         }
 
-        private CilBody CopyCilBody(ModuleDef module, CilBody body, ISearchContext context)
+        private CilBody CopyCilBody(ModuleDef module, CilBody body, ITransformContext context)
         {
             return new CilBody(body.InitLocals, body.Instructions.Select(instr => CopyCilInstruction(module, instr, context)).ToList(), body.ExceptionHandlers.Select(eh => new ExceptionHandler(eh.HandlerType)
             {
@@ -525,7 +526,7 @@ namespace CodeSurgeon
             }).ToList(), body.Variables.Select(v => new Local(module.Import(v.Type), v.Name, v.Index)).ToList());
         }
 
-        private Instruction CopyCilInstruction(ModuleDef module, Instruction instruction, ISearchContext context)
+        private Instruction CopyCilInstruction(ModuleDef module, Instruction instruction, ITransformContext context)
         {
             switch (instruction.Operand)
             {

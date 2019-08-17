@@ -16,13 +16,13 @@ namespace CodeSurgeon.Module
             this.module = module;
         }
 
-        public override ITypeDefOrRef Transform(ITypeDefOrRef token, ISearchContext context) => importer.Import(token.ResolveTypeDef())?.Resolve(context) ?? token;
+        public override ITypeDefOrRef Transform(ITypeDefOrRef token, ITransformContext context) => importer.Import(token.ResolveTypeDef())?.Resolve(context.SearchContext) ?? token;
 
-        public override IField Transform(IField token, ISearchContext context) => importer.Import(token.ResolveFieldDef())?.Resolve(context) ?? token;
+        public override IField Transform(IField token, ITransformContext context) => importer.Import(token.ResolveFieldDef())?.Resolve(context.SearchContext) ?? token;
 
-        public override IMethod Transform(IMethod token, ISearchContext context) => importer.Import(token.ResolveMethodDef())?.Resolve(context) ?? token;
+        public override IMethod Transform(IMethod token, ITransformContext context) => token is IHasCustomAttribute hasAttr && hasAttr.IsBaseDependency() ? InjectBase(context) : importer.Import(token.ResolveMethodDef())?.Resolve(context.SearchContext) ?? token;
 
-        public override IMDTokenProvider Transform(IMDTokenProvider token, ISearchContext context)
+        public override IMDTokenProvider Transform(IMDTokenProvider token, ITransformContext context)
         {
             switch (token = base.Transform(token, context))
             {
@@ -35,6 +35,13 @@ namespace CodeSurgeon.Module
                 default:
                     return token;
             }
+        }
+
+        private MethodDef InjectBase(ITransformContext context)
+        {
+            MethodDef def = context.GenerateHiddenMethod(context.Method.MethodSig, context.Method.Attributes);
+            def.MethodBody = context.Method.MethodBody;
+            return def;
         }
     }
 }

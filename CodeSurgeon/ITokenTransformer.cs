@@ -7,20 +7,20 @@ namespace CodeSurgeon
 {
     public interface ITokenTransformer
     {
-        ITypeDefOrRef Transform(ITypeDefOrRef token, ISearchContext context);
-        CorLibTypeSig Transform(CorLibTypeSig token, ISearchContext context);
-        IField Transform(IField token, ISearchContext context);
-        IMethod Transform(IMethod token, ISearchContext context);
-        IMDTokenProvider Transform(IMDTokenProvider token, ISearchContext context);
+        ITypeDefOrRef Transform(ITypeDefOrRef token, ITransformContext context);
+        CorLibTypeSig Transform(CorLibTypeSig token, ITransformContext context);
+        IField Transform(IField token, ITransformContext context);
+        IMethod Transform(IMethod token, ITransformContext context);
+        IMDTokenProvider Transform(IMDTokenProvider token, ITransformContext context);
     }
 
     public class DefaultTokenTransformer : ITokenTransformer
     {
-        public virtual ITypeDefOrRef Transform(ITypeDefOrRef token, ISearchContext context) => token;
-        public virtual CorLibTypeSig Transform(CorLibTypeSig token, ISearchContext context) => token;
-        public virtual IField Transform(IField token, ISearchContext context) => token;
-        public virtual IMethod Transform(IMethod token, ISearchContext context) => token;
-        public virtual IMDTokenProvider Transform(IMDTokenProvider token, ISearchContext context) => token;
+        public virtual ITypeDefOrRef Transform(ITypeDefOrRef token, ITransformContext context) => token;
+        public virtual CorLibTypeSig Transform(CorLibTypeSig token, ITransformContext context) => token;
+        public virtual IField Transform(IField token, ITransformContext context) => token;
+        public virtual IMethod Transform(IMethod token, ITransformContext context) => token;
+        public virtual IMDTokenProvider Transform(IMDTokenProvider token, ITransformContext context) => token;
     }
 
     public class ResolvingTokenTransformer : DefaultTokenTransformer
@@ -29,6 +29,6 @@ namespace CodeSurgeon
 
         public ResolvingTokenTransformer(ITokenResolver resolver) => this.resolver = resolver;
 
-        public override IMDTokenProvider Transform(IMDTokenProvider token, ISearchContext context) => resolver.ResolveToken(token.Rid);
+        public override IMDTokenProvider Transform(IMDTokenProvider token, ITransformContext context) => resolver.ResolveToken(token.Rid);
     }
 }

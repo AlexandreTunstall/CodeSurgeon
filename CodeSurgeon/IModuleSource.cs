@@ -20,12 +20,12 @@ namespace CodeSurgeon
 
         public virtual ModuleDef Load(UTF8String moduleName)
         {
-            using (Stream stream = Streams.OpenRead(moduleName)) return ModuleDefMD.Load(stream);
+            using (Stream stream = Streams.OpenRead(moduleName) ?? throw new InstallException("cannot open assembly " + moduleName)) return ModuleDefMD.Load(stream);
         }
 
         public virtual void Save(ModuleDef module)
         {
-            using (Stream stream = Streams.OpenWrite(module.Name)) module.Write(stream);
+            using (Stream stream = Streams.OpenWrite(module.Name) ?? throw new InstallException("cannot open assembly " + module.Name)) module.Write(stream);
         }
     }
 }

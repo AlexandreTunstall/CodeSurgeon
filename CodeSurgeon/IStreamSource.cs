@@ -16,17 +16,17 @@ namespace CodeSurgeon
 
         public FileStreamSource(string directory = ".") => Directory = directory;
 
-        public Stream OpenRead(UTF8String assemblyName)
+        public virtual Stream OpenRead(UTF8String assemblyName)
         {
             string fileName = assemblyName;
-            if (fileName == null || !fileName.IsValidFileName()) throw new InstallException("cannot open assembly " + assemblyName);
+            if (fileName == null || !fileName.IsValidFileName()) return null;
             return File.OpenRead(Path.Combine(Directory, fileName + ".dll"));
         }
 
-        public Stream OpenWrite(UTF8String assemblyName)
+        public virtual Stream OpenWrite(UTF8String assemblyName)
         {
             string fileName = assemblyName;
-            if (fileName == null || !fileName.IsValidFileName()) throw new InstallException("cannot open assembly " + assemblyName);
+            if (fileName == null || !fileName.IsValidFileName()) return null;
             return File.OpenWrite(Path.Combine(Directory, fileName));
         }
     }

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CodeSurgeon.CLI": {
+      "commandName": "Project",
+      "commandLineArgs": "-p CodeSurgeon.CLI.TestPatch.dll -t . -o output"
+    }
+  }
+}

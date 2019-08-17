@@ -14,6 +14,7 @@ namespace CodeSurgeon.Module
         internal static readonly string Dependency = typeof(DependencyAttribute).FullName;
         internal static readonly string Inject = typeof(InjectAttribute).FullName;
         internal static readonly string Mixin = typeof(MixinAttribute).FullName;
+        internal static readonly string BaseDependency = typeof(BaseDependencyAttribute).FullName;
 
         public static IPatch CreatePatch(this ModuleDef module, string patchName = null) => new ModuleImporter().CreatePatch(module, patchName);
 
@@ -57,5 +58,7 @@ namespace CodeSurgeon.Module
             name = fullName.Substring(index + 1);
             return fullName.Substring(0, index);
         }
+
+        internal static bool IsBaseDependency(this IHasCustomAttribute token) => !(token.CustomAttributes.Find(BaseDependency) is null);
     }
 }
