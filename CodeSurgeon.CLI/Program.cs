@@ -4,9 +4,9 @@ using System.Linq;
 
 namespace CodeSurgeon.CLI
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
 
         }

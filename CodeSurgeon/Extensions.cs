@@ -161,5 +161,20 @@ namespace CodeSurgeon
                     return AccessLevel.Public;
             }
         }
+
+        public static IMDTokenProvider Import(this ModuleDef module, IMDTokenProvider token)
+        {
+            switch (token)
+            {
+                case IField field:
+                    return module.Import(field);
+                case IMethod method:
+                    return module.Import(method);
+                case IType type:
+                    return module.Import(type);
+                default:
+                    throw new ArgumentException("unrecognized token provider type: " + token.GetType());
+            }
+        }
     }
 }

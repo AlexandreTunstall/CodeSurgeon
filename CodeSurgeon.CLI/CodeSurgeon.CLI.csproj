@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\CodeSurgeon.Module\CodeSurgeon.Module.csproj" />
     <ProjectReference Include="..\CodeSurgeon\CodeSurgeon.csproj" />
   </ItemGroup>
 

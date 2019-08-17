@@ -1,4 +1,5 @@
 ﻿using dnlib.DotNet;
+using dnlib.DotNet.Emit;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -434,6 +435,8 @@ namespace CodeSurgeon
         public MethodSig Signature { get; }
 
         public MethodAttributes Attributes { get; set; }
+        public MethodBody Body { get; set; }
+        public ITokenTransformer TokenTransformer { get; set; }
 
         public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Signature.ToString(), "]");
         public override SymbolKind SymbolKind => SymbolKind.Method;
@@ -473,6 +476,22 @@ namespace CodeSurgeon
             {
                 MethodDef method = context.Get(this);
                 CheckAttributes(method);
+                switch (Body)
+                {
+                    case CilBody cilBody:
+                        Common();
+                        method.Body = CopyCilBody(method.Module, cilBody, context);
+                        break;
+                    case NativeMethodBody nativeBody:
+                        Common();
+                        break;
+                }
+
+                void Common()
+                {
+                    BeginModify();
+                    method.FreeMethodBody();
+                }
             }
             catch (ReadOnlyInstallException e)
             {
@@ -490,6 +509,42 @@ namespace CodeSurgeon
             if (method.Attributes == newAttributes) return;
             BeginModify();
             method.Attributes = newAttributes;
+        }
+
+        private CilBody CopyCilBody(ModuleDef module, CilBody body, ISearchContext context)
+        {
+            return new CilBody(body.InitLocals, body.Instructions.Select(instr => CopyCilInstruction(module, instr, context)).ToList(), body.ExceptionHandlers.Select(eh => new ExceptionHandler(eh.HandlerType)
+            {
+                TryStart = eh.TryStart,
+                TryEnd = eh.TryEnd,
+                FilterStart = eh.FilterStart,
+                HandlerStart = eh.HandlerStart,
+                HandlerEnd = eh.HandlerEnd,
+                CatchType = eh.CatchType,
+                HandlerType = eh.HandlerType
+            }).ToList(), body.Variables.Select(v => new Local(module.Import(v.Type), v.Name, v.Index)).ToList());
+        }
+
+        private Instruction CopyCilInstruction(ModuleDef module, Instruction instruction, ISearchContext context)
+        {
+            switch (instruction.Operand)
+            {
+                case ITypeDefOrRef typeRef:
+                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(typeRef, context)));
+                case CorLibTypeSig corSig:
+                    return new Instruction(instruction.OpCode, module.CorLibTypes.GetCorLibTypeSig(TokenTransformer.Transform(corSig, context).TypeDefOrRef));
+                case IField field:
+                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(field, context)));
+                case IMethod method:
+                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(method, context)));
+                case ITokenOperand token:
+                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(token, context)));
+                case MethodSig methodSig:
+                case Parameter _:
+                case Local _:
+                default:
+                    return instruction;
+            }
         }
     }
 

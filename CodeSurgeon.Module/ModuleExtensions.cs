@@ -33,6 +33,8 @@ namespace CodeSurgeon.Module
         {
             switch (argument.Value)
             {
+                case UTF8String utf8:
+                    return utf8;
                 case string str:
                     return str;
                 case byte[] raw:
