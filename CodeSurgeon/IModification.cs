@@ -2,6 +2,7 @@
 using dnlib.DotNet.Emit;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -33,6 +34,7 @@ namespace CodeSurgeon
         Event
     }
 
+    [DebuggerDisplay("{FullName}")]
     public abstract class AbstractModification<TSymbol, TSelf> : IModification<TSymbol> where TSymbol : class, IDnlibDef where TSelf : AbstractModification<TSymbol, TSelf>
     {
         private protected const SigComparerOptions SearchOptions = SigComparerOptions.DontCompareTypeScope | SigComparerOptions.IgnoreModifiers | SigComparerOptions.DontCompareReturnType | SigComparerOptions.PrivateScopeIsComparable;
@@ -67,7 +69,7 @@ namespace CodeSurgeon
                     if (target == null) throw new SymbolInstallException<TSelf>(This, new InstallException("could not find a definition for this symbol"));
                     return false;
                 case ModificationKind.CreateIfMissing:
-                    return target != null;
+                    return target == null;
                 default:
                     throw new SymbolInstallException<TSelf>(This, new InstallException("unknown modification kind " + Kind));
             }
@@ -80,13 +82,19 @@ namespace CodeSurgeon
 
         private protected class NamedComparer<T> : IEqualityComparer<(UTF8String name, T obj)>
         {
-            public Func<T, T, bool> Comparer { get; }
+            public IEqualityComparer<T> Comparer { get; }
 
-            public NamedComparer(Func<T, T, bool> comparer) => Comparer = comparer;
+            public NamedComparer(IEqualityComparer<T> comparer) => Comparer = comparer;
 
-            public bool Equals((UTF8String name, T obj) x, (UTF8String name, T obj) y) => x.name == y.name && Comparer(x.obj, y.obj);
+            public bool Equals((UTF8String name, T obj) x, (UTF8String name, T obj) y) => x.name == y.name && Comparer.Equals(x.obj, y.obj);
 
-            public int GetHashCode((UTF8String name, T obj) obj) => obj.GetHashCode();
+            public int GetHashCode((UTF8String name, T obj) obj)
+            {
+                int hashCode = -588248240;
+                hashCode = hashCode * -1521134295 + EqualityComparer<UTF8String>.Default.GetHashCode(obj.name);
+                hashCode = hashCode * -1521134295 + Comparer.GetHashCode(obj.obj);
+                return hashCode;
+            }
         }
     }
 
@@ -198,7 +206,7 @@ namespace CodeSurgeon
     {
         private const TypeAttributes PreservedAttributes = TypeAttributes.SpecialName | TypeAttributes.RTSpecialName;
 
-        private static readonly IEqualityComparer<(UTF8String name, MethodSig sig)> NamedMethodComparer = new NamedComparer<MethodSig>(Comparer.Equals);
+        private static readonly IEqualityComparer<(UTF8String name, MethodSig sig)> NamedMethodComparer = new NamedComparer<MethodSig>(new SignatureEqualityComparer(SearchOptions));
 
         public ModuleModification Module { get; }
         public UTF8String Namespace { get; }
@@ -438,7 +446,7 @@ namespace CodeSurgeon
         public MethodBody Body { get; set; }
         public ITokenTransformer TokenTransformer { get; set; }
 
-        public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Signature.ToString(), "]");
+        public override UTF8String FullName => DeclaringType.FullName.Concat(".", Name, "[", Signature.ToString(), "]");
         public override SymbolKind SymbolKind => SymbolKind.Method;
 
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel();
@@ -561,7 +569,7 @@ namespace CodeSurgeon
         public IEnumerable<MethodModification> SetMethods => setMethods;
         public IEnumerable<MethodModification> OtherMethods => otherMethods;
 
-        public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Signature.ToString(), "]");
+        public override UTF8String FullName => DeclaringType.FullName.Concat(".", Name, "[", Signature.ToString(), "]");
         public override SymbolKind SymbolKind => SymbolKind.Property;
 
         private protected override PropertyModification This => this;
@@ -639,7 +647,7 @@ namespace CodeSurgeon
         public MethodModification InvokeMethod { get; set; }
         public IEnumerable<MethodModification> OtherMethods => otherMethods;
 
-        public override UTF8String FullName => DeclaringType.FullName.Concat(Name, "[", Type.FullName, "]");
+        public override UTF8String FullName => DeclaringType.FullName.Concat(".", Name, "[", Type.FullName, "]");
         public override SymbolKind SymbolKind => SymbolKind.Event;
 
         private protected override EventModification This => this;

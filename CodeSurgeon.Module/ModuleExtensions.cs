@@ -2,6 +2,7 @@
 using dnlib.DotNet;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace CodeSurgeon.Module
@@ -15,6 +16,7 @@ namespace CodeSurgeon.Module
         internal static readonly string Inject = typeof(InjectAttribute).FullName;
         internal static readonly string Mixin = typeof(MixinAttribute).FullName;
         internal static readonly string BaseDependency = typeof(BaseDependencyAttribute).FullName;
+        internal static readonly string CompilerGenerated = typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute).FullName;
 
         public static IPatch CreatePatch(this ModuleDef module, string patchName = null) => new ModuleImporter().CreatePatch(module, patchName);
 
@@ -22,6 +24,7 @@ namespace CodeSurgeon.Module
         {
             if (definition.CustomAttributes.Find(Dependency) != null || definition.CustomAttributes.Find(Mixin) != null) return ModificationKind.FailIfMissing;
             else if (definition.CustomAttributes.Find(Inject) != null) return ModificationKind.FailIfPresent;
+            else if (definition.CustomAttributes.Find(CompilerGenerated) != null || definition is IMemberDef member && member.DeclaringType?.CustomAttributes?.Find(CompilerGenerated) != null) return ModificationKind.CreateIfMissing;
             else return null;
         }
 

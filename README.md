@@ -44,9 +44,6 @@ To use it, open the `.csproj` file for your project, and add the following lines
 Note that the string for `Include` is the path to the analyzer project's `.csproj` file relative to the directory of the `.csproj` you're editing.
 If you're not sure what value to use, add the analyzer as a reference in your IDE, and check what changes are made to the `.csproj` file.
 
-The analyzer assumes that the assembly you're trying to patch and all the dependencies are referenced.
-If that's not possible, you can suppress the "unknown dependency" warnings, but you will need to verify the dependencies manually.
-
 ### Writing a Patch
 
 All the types used are inside the `CodeSurgeon.Attributes` namespace.
@@ -74,8 +71,6 @@ For example, if your patch has a read-only dependency `OtherThing.dll`, meaning 
 ```C#
 [module: Required("OtherThing.dll", true)]
 ```
-
-Patches mainly use three different attributes.
 
 ### Mixins
 

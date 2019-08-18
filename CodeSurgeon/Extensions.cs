@@ -20,7 +20,7 @@ namespace CodeSurgeon
                     @class.ToTypeDefOrRef()
                     return new ClassSig()
             }
-        }
+        }*/
         
         public static TypeSig ApplyToLeaf(this TypeSig sig, Func<LeafSig, TypeSig> transform)
         {
@@ -28,27 +28,27 @@ namespace CodeSurgeon
             TypeSig unwrapped = ApplyToLeaf(sig.Next, transform);
             switch (sig)
             {
-                case ValueArraySig valueArray:
-                    return new ValueArraySig(unwrapped, valueArray.Size);
-                case SZArraySig szArray:
-                    return new SZArraySig(unwrapped);
-                case ArraySig array:
-                    return new ArraySig(unwrapped, array.Rank, array.Sizes, array.LowerBounds);
-                case ByRefSig byRef:
-                    return new ByRefSig(unwrapped);
                 case PtrSig ptr:
                     return new PtrSig(unwrapped);
-                case ModuleSig module:
-                    return new ModuleSig(module.Index, unwrapped);
-                case CModOptSig cModOpt:
-                    return new CModOptSig(cModOpt.Modifier, unwrapped);
+                case ByRefSig byRef:
+                    return new ByRefSig(unwrapped);
+                case ArraySig array:
+                    return new ArraySig(unwrapped, array.Rank, array.Sizes, array.LowerBounds);
+                case SZArraySig szArray:
+                    return new SZArraySig(unwrapped);
                 case CModReqdSig cModReqd:
                     return new CModReqdSig(cModReqd.Modifier, unwrapped);
+                case CModOptSig cModOpt:
+                    return new CModOptSig(cModOpt.Modifier, unwrapped);
                 case PinnedSig pinned:
                     return new PinnedSig(unwrapped);
+                case ValueArraySig valueArray:
+                    return new ValueArraySig(unwrapped, valueArray.Size);
+                case ModuleSig module:
+                    return new ModuleSig(module.Index, unwrapped);
             }
             throw new NotImplementedException("unknown element type " + sig.ElementType);
-        }*/
+        }
 
         public static bool Equals(this TypeAttributes a, TypeAttributes b, TypeAttributes mask) => (a & mask) == (b & mask);
         public static bool Equals(this FieldAttributes a, FieldAttributes b, FieldAttributes mask) => (a & mask) == (b & mask);

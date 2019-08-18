@@ -72,6 +72,7 @@ namespace TestNamespace
         string " + StringField + @";
         [Dependency]
         void " + NopMethod + @"() { }
+        [Dependency]
         string " + StringProperty + @" { get; set; }
     }
 }");
@@ -89,6 +90,25 @@ namespace TestNamespace
         public void " + NopMethod + @"() => System.Console.WriteLine(""Hello world!"");
     }
 }", "System.Console");
+        
+        [TestMethod]
+        public void TestCompilerGenerated() => InstallPatch(@"
+using CodeSurgeon.Attributes;
+using System.Collections.Generic;
+[module: Required(""" + ModuleName + @""", false)]
+namespace TestNamespace
+{
+    [Mixin, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + ModuleName + @""")]
+    class NormalClassPatch
+    {
+        [Inject]
+        IEnumerable<int> " + MissingMember + @"()
+        {
+            yield return 0;
+        }
+    }
+}
+");
 
         private void InstallPatch(string source, params string[] references)
         {

@@ -1,6 +1,7 @@
 ﻿using CodeSurgeon.Attributes;
 using CodeSurgeon.CLI.TestTarget;
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 [module: Required("CodeSurgeon.CLI.TestTarget", false)]
@@ -19,6 +20,12 @@ namespace CodeSurgeon.CLI.TestPatch
 
         [Inject]
         public static string GetMessage() => "Goodbye, world!";
+
+        [Mixin]
+        private static IEnumerable<T> Infinite<T>(Func<T> generator)
+        {
+            for (; true; generator()) yield return generator();
+        }
 
         [BaseDependency]
         private static void Base(string[] args) => throw new NotImplementedException();
