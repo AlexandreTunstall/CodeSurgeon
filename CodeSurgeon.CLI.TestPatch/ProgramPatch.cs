@@ -1,6 +1,7 @@
 ﻿using CodeSurgeon.Attributes;
 using CodeSurgeon.CLI.TestTarget;
 using System;
+using System.Runtime.CompilerServices;
 
 [module: Required("CodeSurgeon.CLI.TestTarget", false)]
 
@@ -13,8 +14,11 @@ namespace CodeSurgeon.CLI.TestPatch
         public static void Main(string[] args)
         {
             Base(args);
-            Console.WriteLine("Goodbye, world!");
+            Console.WriteLine(GetMessage());
         }
+
+        [Inject]
+        public static string GetMessage() => "Goodbye, world!";
 
         [BaseDependency]
         private static void Base(string[] args) => throw new NotImplementedException();

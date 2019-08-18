@@ -16,11 +16,11 @@ namespace CodeSurgeon.Module
             this.module = module;
         }
 
-        public override ITypeDefOrRef Transform(ITypeDefOrRef token, ITransformContext context) => importer.Import(token.ResolveTypeDef())?.Resolve(context.SearchContext) ?? token;
+        public override ITypeDefOrRef Transform(ITypeDefOrRef token, ITransformContext context) => importer.Import(token.ResolveTypeDef()) is TypeModification mod ? context.SearchContext.Get(mod) : token;
 
-        public override IField Transform(IField token, ITransformContext context) => importer.Import(token.ResolveFieldDef())?.Resolve(context.SearchContext) ?? token;
+        public override IField Transform(IField token, ITransformContext context) => importer.Import(token.ResolveFieldDef()) is FieldModification mod ? context.SearchContext.Get(mod) : token;
 
-        public override IMethod Transform(IMethod token, ITransformContext context) => token is IHasCustomAttribute hasAttr && hasAttr.IsBaseDependency() ? InjectBase(context) : importer.Import(token.ResolveMethodDef())?.Resolve(context.SearchContext) ?? token;
+        public override IMethod Transform(IMethod token, ITransformContext context) => token is IHasCustomAttribute hasAttr && hasAttr.IsBaseDependency() ? InjectBase(context) : importer.Import(token.ResolveMethodDef()) is MethodModification mod ? context.SearchContext.Get(mod) : token;
 
         public override IMDTokenProvider Transform(IMDTokenProvider token, ITransformContext context)
         {
