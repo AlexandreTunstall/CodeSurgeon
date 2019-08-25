@@ -1,5 +1,7 @@
 ﻿# Code Surgeon CLI
 
+A basic command line patch installer.
+
 ## How to use
 
 In the build output directory, run `dotnet CodeSurgeon.CLI.dll -?` to get usage information about the CLI.

@@ -27,9 +27,15 @@ Example uses:
 First of all, you need to setup your project.
 
 1. [Clone this repository](https://help.github.com/en/articles/cloning-a-repository) (or, if your project uses Git, [add it as a submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules)).
-2. Add the `CodeSurgeon.Attributes` project to your references.
+2. Add to your project references:
+   * The [`CodeSurgeon.Attributes` project](/CodeSurgeon.Attributes/) if you're writing a patch.
+   * The [`CodeSurgeon.Module` project](/CodeSurgeon.Module/) if you're writing a custom patch installer using the built-in dnlib patch importer.
+   * The [`CodeSurgeon` project](/CodeSurgeon/) if you want to write a custom patch importer.
 
 ### Code Surgeon Analyzer
+
+**Disclaimer: Development of the code analyzer has not yet begun.**
+**If you nonetheless choose to use it, you may get errors on all the types in your project whose names contain lowercase characters.**
 
 This tool comes with a code analyzer to help locate mistakes when writing patch files.
 To use it, open the `.csproj` file for your project, and add the following lines.
@@ -72,7 +78,7 @@ For example, if your patch has a read-only dependency `OtherThing.dll`, meaning 
 [module: Required("OtherThing.dll", true)]
 ```
 
-### Mixins
+#### Mixins
 
 Mixins allow you to modify the value of existing symbols inside the patched assembly.
 This can be used to change methods' bodies, or to change fields' values.
@@ -87,7 +93,7 @@ internal void Log(string text) => Console.WriteLine(text);
 The installer will also increase the accessibility to at least match that declared in the mixin.
 In the previous example, after installation, the `Log` method will be *at least* `internal`.
 
-### Dependencies
+#### Dependencies
 
 If you need to use a symbol declared inside the patched assembly or one of the required assemblies, you can declare that you need the symbol using the `Dependency` attribute.
 This behaves identically to the `Mixin` attribute, except that it will not alter the symbol inside the assembly.
@@ -104,7 +110,7 @@ internal class Person
 }
 ```
 
-### Injections
+#### Injections
 
 It is possible to inject symbols without replacing existing symbols using the `Inject` attribute.
 The installer will inject the symbol into the patched assembly.
@@ -118,7 +124,7 @@ internal enum Thing { }
 
 If a symbol with the same name already exists inside the patched assembly, then the installation will fail due to a name collision.
 
-### Base Dependencies
+#### Base Dependencies
 
 If you wish to modify a method, but want to retain its existing functionality, you can use a base dependency.
 Inside a mixin, any call to a method with a `BaseDependency` attribute will be replaced with the method's original body.
@@ -139,7 +145,7 @@ private void CallBase(string text) => throw new NotImplementedException();
 
 Methods with a `BaseDependency` attribute may only be called when inside a mixin method body and when the signature is identical.
 
-### Special Names
+#### Special Names
 
 Sometimes, the symbol you're trying to a patch has a name that cannot be reproduced in code.
 You can use the `Name` attribute to override the name of the associated symbol.
@@ -160,15 +166,25 @@ And the following code instructs the installer to modify the `\n` class from the
 internal class NewLine { }
 ```
 
+#### Example Patch
+
+A working example patch can be found in the [`CodeSurgeon.CLI.TestPatch` project](/CodeSurgeon.CLI.TestPatch/).
+
 ### Installing a Patch
 
 To actually install your patch into the assembly, you need an installer.
 
 #### With the Provided CLI Installer
 
-Code Surgeon comes with a command line installer in the `CodeSurgeon.CLI` project.
-More information on using the installer can be found [here](CodeSurgeon.CLI/README.md).
+Code Surgeon comes with a command line installer in the [`CodeSurgeon.CLI` project](/CodeSurgeon.CLI/) (see project README for more information).
 
 #### Writing a Custom Installer
 
 Since Code Surgeon provides an API, you may use your own installer instead of the provided one.
+
+*The documentation does not yet exist.*
+*Please use the provided CLI installer source code as a reference instead.*
+
+## Contributing
+
+If you've found a bug, observed behaviour you did not expect or would like to suggest a feature, please [create an issue](/../../issues/new).
