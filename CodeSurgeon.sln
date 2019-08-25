@@ -33,10 +33,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CodeSurgeon.CLI", "CodeSurg
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeSurgeon.CLI.TestTarget", "CodeSurgeon.CLI.TestTarget\CodeSurgeon.CLI.TestTarget.csproj", "{B6FA6E8B-D7FE-4C6C-8763-6F2721B5AA0F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeSurgeon.CLI.TestPatch", "CodeSurgeon.CLI.TestPatch\CodeSurgeon.CLI.TestPatch.csproj", "{F3535AE7-EA62-4974-B2E4-021AF5AF50BF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeSurgeon.CLI.TestPatch", "CodeSurgeon.CLI.TestPatch\CodeSurgeon.CLI.TestPatch.csproj", "{F3535AE7-EA62-4974-B2E4-021AF5AF50BF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D524C294-F31C-4F34-8AD1-8E1CEF349A44}"
 	ProjectSection(SolutionItems) = preProject
+		LICENSE.txt = LICENSE.txt
 		README.md = README.md
 	EndProjectSection
 EndProject
