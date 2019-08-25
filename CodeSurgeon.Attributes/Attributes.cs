@@ -3,7 +3,7 @@ using System.Text;
 
 namespace CodeSurgeon.Attributes
 {
-    [AttributeUsage(AttributeTargets.Module)]
+    [AttributeUsage(AttributeTargets.Module, AllowMultiple = true)]
     public class RequiredAttribute : Attribute
     {
         public byte[] Assembly { get; }

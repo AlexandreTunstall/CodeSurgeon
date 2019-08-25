@@ -17,7 +17,7 @@ namespace CodeSurgeon
 
     public class StandardTransformContext : ITransformContext
     {
-        private const MethodAttributes GenAttributes = MethodAttributes.CompilerControlled | MethodAttributes.Final;
+        private const MethodAttributes GenAttributes = MethodAttributes.CompilerControlled;
         private const MethodAttributes MergeAttributes = MethodAttributes.Static;
 
         public ISearchContext SearchContext { get; }

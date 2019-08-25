@@ -30,7 +30,7 @@ namespace CodeSurgeon.CLI
                     app.ShowHint();
                     return 0;
                 }
-                IEnumerable<IStreamSource> sources = targets.Values.Select(t => new FileStreamSource(t)).ToList();
+                IEnumerable<IStreamSource> sources = targets.Values.Select<string, IStreamSource>(t => new FileStreamSource(t)).ToList();
                 IStreamSource source;
                 if (output.HasValue())
                 {

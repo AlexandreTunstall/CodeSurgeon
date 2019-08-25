@@ -22,15 +22,15 @@ namespace CodeSurgeon
 
     public class SymbolInstallException : InstallException
     {
-        public IModification<IDnlibDef> Modification { get; }
+        public IReference<IFullName> Modification { get; }
 
-        public SymbolInstallException(IModification<IDnlibDef> mod) : base(GetMessage(mod)) => Modification = mod;
-        public SymbolInstallException(IModification<IDnlibDef> mod, Exception cause) : base(GetMessage(mod), cause) => Modification = mod;
+        public SymbolInstallException(IReference<IFullName> mod) : base(GetMessage(mod)) => Modification = mod;
+        public SymbolInstallException(IReference<IFullName> mod, Exception cause) : base(GetMessage(mod), cause) => Modification = mod;
 
-        private static string GetMessage(IModification<IDnlibDef> mod) => "failed to install " + mod.SymbolKind.ToString().ToLower() + " " + mod.FullName;
+        private static string GetMessage(IReference<IFullName> mod) => "failed to install " + mod.SymbolKind.ToString().ToLower() + " " + mod.FullName;
     }
 
-    public class SymbolInstallException<TSymbol> : SymbolInstallException where TSymbol : IModification<IDnlibDef>
+    public class SymbolInstallException<TSymbol> : SymbolInstallException where TSymbol : IReference<IFullName>
     {
         public new TSymbol Modification { get; }
 

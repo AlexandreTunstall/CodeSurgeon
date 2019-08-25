@@ -63,5 +63,46 @@ namespace CodeSurgeon.Module
         }
 
         internal static bool IsBaseDependency(this IHasCustomAttribute token) => !(token.CustomAttributes.Find(BaseDependency) is null);
+
+        internal static MethodDef GetLeafMethod(this IMethod method)
+        {
+            switch (method)
+            {
+                case MethodDef def:
+                    return def;
+                case MemberRef @ref:
+                    return method.DeclaringType.GetLeafType()?.ResolveTypeDef()?.ResolveMethod(@ref);
+                default:
+                    return null;
+            }
+        }
+
+        internal static ITypeDefOrRef GetLeafType(this ITypeDefOrRef type)
+        {
+            switch (type)
+            {
+                case TypeSpec spec:
+                    return spec.TypeSig.GetLeafType();
+                default:
+                    return type;
+            }
+        }
+
+        internal static ITypeDefOrRef GetLeafType(this TypeSig sig)
+        {
+            while (true)
+            {
+                switch (sig)
+                {
+                    case NonLeafSig nonLeaf:
+                        sig = nonLeaf.Next;
+                        break;
+                    case TypeDefOrRefSig type:
+                        return type.TypeDefOrRef;
+                    default:
+                        return null;
+                }
+            }
+        }
     }
 }

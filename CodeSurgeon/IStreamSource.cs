@@ -1,5 +1,6 @@
 ﻿using dnlib.DotNet;
 using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace CodeSurgeon
@@ -19,8 +20,17 @@ namespace CodeSurgeon
         public virtual Stream OpenRead(UTF8String assemblyName)
         {
             string fileName = assemblyName;
-            if (fileName == null || !fileName.IsValidFileName()) return null;
-            return File.OpenRead(Path.Combine(Directory, fileName + ".dll"));
+            try
+            {
+                return fileName == null || !fileName.IsValidFileName() ? null : File.OpenRead(Path.Combine(Directory, fileName + ".dll"));
+            }
+            catch (IOException e)
+            {
+#if DEBUG
+                Debug.WriteLine("Failed to open file: {0}", (object)e.Message);
+#endif
+                return null;
+            }
         }
 
         public virtual Stream OpenWrite(UTF8String assemblyName)

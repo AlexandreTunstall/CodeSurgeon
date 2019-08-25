@@ -26,8 +26,8 @@ namespace CodeSurgeon.Module.Test
         private const string NopMethod = "Nop";
         private const string StringProperty = "SomeStringProperty";
 
-        private static readonly string[] ExtraReferences = { nameof(CodeSurgeon) + "." + nameof(Attributes), "netstandard" };
-        private static readonly string[] References = { "System.Runtime" };
+        private static readonly string[] RequiredReferences = { "System.Runtime" };
+        private static readonly IEnumerable<string> AllReferences = new string[] { nameof(CodeSurgeon) + "." + nameof(Attributes), "netstandard" }.Concat(RequiredReferences);
 
         private ModuleDef module;
         private MemoryStream stream;
@@ -46,7 +46,7 @@ namespace " + ReadOnlyNamespace + @"
         void " + NopMethod + @"() { }
         string " + StringProperty + @" { get; set; }
     }
-}", stream);
+}", stream, Locate(RequiredReferences));
             stream.Position = 0L;
             module = ModuleDefMD.Load(stream);
         }
@@ -60,10 +60,10 @@ namespace " + ReadOnlyNamespace + @"
         [TestMethod]
         public void TestDependency() => InstallPatch(@"
 using CodeSurgeon.Attributes;
-[module: Required(""" + ModuleName + @""", false)]
+[module: Required(""" + module.Assembly.Name + @""", false), Required(""System.Runtime"", true)]
 namespace TestNamespace
 {
-    [Dependency, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + ModuleName + @""")]
+    [Dependency, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + module.Assembly.Name + @""")]
     class NormalClassPatch
     {
         [Dependency]
@@ -80,10 +80,10 @@ namespace TestNamespace
         [TestMethod]
         public void TestMixin() => InstallPatch(@"
 using CodeSurgeon.Attributes;
-[module: Required(""" + ModuleName + @""", false)]
+[module: Required(""" + module.Assembly.Name + @""", false), Required(""System.Runtime"", true), Required(""System.Console"", true)]
 namespace TestNamespace
 {
-    [Mixin, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + ModuleName + @""")]
+    [Mixin, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + module.Assembly.Name + @""")]
     class NormalClassPatch
     {
         [Mixin]
@@ -95,10 +95,10 @@ namespace TestNamespace
         public void TestCompilerGenerated() => InstallPatch(@"
 using CodeSurgeon.Attributes;
 using System.Collections.Generic;
-[module: Required(""" + ModuleName + @""", false)]
+[module: Required(""" + module.Assembly.Name + @""", false), Required(""System.Runtime"", true)]
 namespace TestNamespace
 {
-    [Mixin, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + ModuleName + @""")]
+    [Mixin, Name(""" + ReadOnlyNamespace + "." + NormalClass + @"""), From(""" + module.Assembly.Name + @""")]
     class NormalClassPatch
     {
         [Inject]
@@ -114,41 +114,51 @@ namespace TestNamespace
         {
             using (MemoryStream stream = new MemoryStream(4096))
             {
-                Compile(source, stream, true, references);
+                List<string> paths = Locate(references.Concat(AllReferences)).ToList();
+                Compile(source, stream, paths);
                 stream.Position = 0L;
-                PatchInstaller installer = new PatchInstaller(new MockModuleSource(module));
+                PatchInstaller installer = new PatchInstaller(new MockModuleSource(module, stream, paths.ToDictionary<string, UTF8String, ModuleDef>(p => Path.GetFileNameWithoutExtension(p), p => ModuleDefMD.Load(p))));
                 installer.Add(ModuleDefMD.Load(stream).CreatePatch("TestPatch"));
                 installer.Install();
             }
         }
 
-        private void Compile(string source, MemoryStream stream, bool withAttributes = false, params string[] references)
+        private void Compile(string source, MemoryStream stream, params string[] references) => Compile(source, stream, (IEnumerable<string>)references);
+        private void Compile(string source, MemoryStream stream, IEnumerable<string> references)
         {
             Debug.WriteLine("=== New Compilation Requested ===");
-            EmitResult result = CSharpCompilation.Create(ModuleName, new[] { CSharpSyntaxTree.ParseText(source) }, Reference(withAttributes ? References.Concat(ExtraReferences).Concat(references) : References), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)).Emit(stream);
+            EmitResult result = CSharpCompilation.Create(ModuleName, new[] { CSharpSyntaxTree.ParseText(source) }, references.Select(p => MetadataReference.CreateFromFile(p)), new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)).Emit(stream);
             if (!result.Success) Assert.Inconclusive("failed to emit test assembly");
         }
 
-        private IEnumerable<MetadataReference> Reference(params string[] names) => Reference((IEnumerable<string>)names);
-        private IEnumerable<MetadataReference> Reference(IEnumerable<string> names) => DependencyContext.Default.CompileLibraries.SelectMany(cl => cl.ResolveReferencePaths()).Where(p => names.Contains(Path.GetFileNameWithoutExtension(p))).Select(p => MetadataReference.CreateFromFile(p));
+        private IEnumerable<string> Locate(IEnumerable<string> names) => DependencyContext.Default.CompileLibraries.SelectMany(cl => cl.ResolveReferencePaths()).Where(p => names.Contains(Path.GetFileNameWithoutExtension(p)));
 
         private class MockModuleSource : IModuleSource
         {
             public ModuleDef Module { get; }
+            public UTF8String Name { get; }
 
-            private readonly UTF8String name;
+            private readonly Stream stream;
+            private readonly Dictionary<UTF8String, ModuleDef> modules;
 
-            public MockModuleSource(ModuleDef module) => name = StripExtension((Module = module).Name);
+            public MockModuleSource(ModuleDef module, Stream stream, IReadOnlyDictionary<UTF8String, ModuleDef> references)
+            {
+                Name = (Module = module).Assembly.Name;
+                this.stream = stream;
+                (modules = new Dictionary<UTF8String, ModuleDef>(references)).Add(Name, module);
+            }
 
             public virtual ModuleDef Load(UTF8String moduleName)
             {
-                Assert.AreEqual(name, moduleName, "attempt to load invalid module name");
-                return Module;
+                if (!modules.TryGetValue(moduleName, out ModuleDef module)) Assert.Fail("attempt to load invalid module name: " + moduleName);
+                return module;
             }
 
-            public virtual void Save(ModuleDef module) => Assert.AreSame(Module, module, "attempt to save a different module to the one patched");
-
-            private UTF8String StripExtension(UTF8String path) => path.Substring(0, path.LastIndexOf('.'));
+            public virtual void Save(ModuleDef module)
+            {
+                Assert.AreSame(Module, module, "attempt to save a different module to the one being patched");
+                module.Write(stream);
+            }
         }
     }
 }

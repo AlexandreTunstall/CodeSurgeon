@@ -8,12 +8,9 @@ using System.Text;
 
 namespace CodeSurgeon
 {
-    public interface IModification<out TSymbol> where TSymbol : class, IDnlibDef
+    public interface IModification<out TSymbol> : IReference<TSymbol> where TSymbol : class, IDnlibDef
     {
         ModificationKind Kind { get; }
-        UTF8String FullName { get; }
-        SymbolKind SymbolKind { get; }
-        TSymbol Resolve(ISearchContext context);
         void Apply(ISearchContext context);
     }
 
@@ -22,16 +19,6 @@ namespace CodeSurgeon
         FailIfPresent,
         FailIfMissing,
         CreateIfMissing
-    }
-
-    public enum SymbolKind
-    {
-        Module,
-        Type,
-        Field,
-        Method,
-        Property,
-        Event
     }
 
     [DebuggerDisplay("{FullName}")]
@@ -98,18 +85,25 @@ namespace CodeSurgeon
         }
     }
 
-    public abstract class MemberModification<TSymbol, TSelf> : AbstractModification<TSymbol, TSelf> where TSymbol : class, IDnlibDef where TSelf : MemberModification<TSymbol, TSelf>
+    public abstract class MemberModification<TSymbol, TSelf> : AbstractModification<TSymbol, TSelf>, IMemberReference<TSymbol> where TSymbol : class, IMemberRef, IDnlibDef where TSelf : MemberModification<TSymbol, TSelf>
     {
         public TypeModification DeclaringType { get; }
+        public UTF8String Name { get; }
 
-        private protected MemberModification(TypeModification declaringType, ModificationKind kind, bool readOnly) : base(kind, readOnly) => DeclaringType = declaringType;
+        ITypeReference<ITypeDefOrRef> IMemberReference<TSymbol>.DeclaringType => DeclaringType;
+
+        private protected MemberModification(TypeModification declaringType, UTF8String name, ModificationKind kind, bool readOnly) : base(kind, readOnly)
+        {
+            DeclaringType = declaringType;
+            Name = name;
+        }
     }
 
-    public abstract class AccessibleModification<TSymbol, TSelf> : MemberModification<TSymbol, TSelf> where TSymbol : class, IDnlibDef where TSelf : AccessibleModification<TSymbol, TSelf>
+    public abstract class AccessibleModification<TSymbol, TSelf> : MemberModification<TSymbol, TSelf> where TSymbol : class, IMemberRef, IDnlibDef where TSelf : AccessibleModification<TSymbol, TSelf>
     {
         internal abstract AccessLevel AccessLevel { get; }
 
-        private protected AccessibleModification(TypeModification declaringType, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly) { }
+        private protected AccessibleModification(TypeModification declaringType, UTF8String name, ModificationKind kind, bool readOnly) : base(declaringType, name, kind, readOnly) { }
 
         private protected bool CheckAccessLevel(AccessLevel actual)
         {
@@ -152,7 +146,7 @@ namespace CodeSurgeon
         Public
     }
 
-    public sealed class ModuleModification : AbstractModification<ModuleDef, ModuleModification>
+    public sealed class ModuleModification : AbstractModification<ModuleDef, ModuleModification>, IModuleReference<ModuleDef>
     {
         public UTF8String Name { get; }
 
@@ -200,17 +194,20 @@ namespace CodeSurgeon
         {
             foreach (TypeModification mod in Types) mod.Apply(context);
         }
+
+        public bool Equals(IModuleReference<IModule> other) => ModuleReference.Equals(this, other);
     }
 
-    public sealed class TypeModification : AccessibleModification<TypeDef, TypeModification>
+    public sealed class TypeModification : AccessibleModification<TypeDef, TypeModification>, ITypeReference<TypeDef>
     {
         private const TypeAttributes PreservedAttributes = TypeAttributes.SpecialName | TypeAttributes.RTSpecialName;
 
-        private static readonly IEqualityComparer<(UTF8String name, MethodSig sig)> NamedMethodComparer = new NamedComparer<MethodSig>(new SignatureEqualityComparer(SearchOptions));
+        private static readonly IEqualityComparer<(UTF8String name, MethodSignature sig)> NamedMethodComparer = new NamedComparer<MethodSignature>(EqualityComparer<MethodSignature>.Default);
+        private static readonly GenericParamComparer GenericComparer = new GenericParamComparer();
 
         public ModuleModification Module { get; }
+        public IReference<IResolutionScope> Scope => null;
         public UTF8String Namespace { get; }
-        public UTF8String Name { get; }
 
         public IEnumerable<TypeModification> NestedTypes { get; }
         public IEnumerable<FieldModification> Fields { get; }
@@ -219,55 +216,34 @@ namespace CodeSurgeon
         public IEnumerable<EventModification> Events { get; }
 
         public TypeAttributes Attributes { get; set; }
-        public TypeModification BaseType { get; set; }
-        public IEnumerable<TypeModification> BaseInterfaces { get; }
+        public IReadOnlyList<GenericParameter> GenericParameters { get; set; }
+        public ITypeReference<ITypeDefOrRef> BaseType { get; set; }
+        public IEnumerable<InterfaceImplementation> BaseInterfaces => baseInterfaces;
 
-        public override UTF8String FullName
-        {
-            get
-            {
-                TypeModification current = this;
-                List<UTF8String> tokens = new List<UTF8String>();
-                while (current.IsNested)
-                {
-                    current = current.DeclaringType;
-                    tokens.Add(current.Name);
-                    tokens.Add("/");
-                }
-                tokens.Add(current.Name);
-                if (current.Namespace.DataLength > 0)
-                {
-                    tokens.Add(".");
-                    tokens.Add(current.Namespace);
-                }
-                tokens.Add("]");
-                tokens.Add(current.Module.FullName);
-                tokens.Add("[");
-                tokens.Reverse();
-                return UTF8String.Empty.Concat(tokens);
-            }
-        }
+        public override UTF8String FullName => this.ToFullName();
         public override SymbolKind SymbolKind => SymbolKind.Type;
         public bool IsNested => Namespace is null;
 
-        internal override AccessLevel AccessLevel => Attributes.GetAccessLevel(IsNested);
+        internal override AccessLevel AccessLevel => Attributes.GetAccessLevel(IsNested, out _);
 
         private protected override TypeModification This => this;
 
         private readonly Dictionary<UTF8String, IModification<IDnlibDef>> members = new Dictionary<UTF8String, IModification<IDnlibDef>>();
-        private readonly Dictionary<(UTF8String, MethodSig), MethodModification> methods = new Dictionary<(UTF8String, MethodSig), MethodModification>(NamedMethodComparer);
+        private readonly Dictionary<(UTF8String, MethodSignature), MethodModification> methods = new Dictionary<(UTF8String, MethodSignature), MethodModification>(NamedMethodComparer);
+
+        private readonly IList<InterfaceImplementation> baseInterfaces = new List<InterfaceImplementation>();
 
         internal TypeModification(ModuleModification module, UTF8String @namespace, UTF8String name, ModificationKind kind, bool readOnly) : this(null, name, kind, readOnly)
         {
+            if (module is null) throw new ArgumentNullException(nameof(module));
             if (@namespace is null) throw new ArgumentNullException(nameof(@namespace), nameof(@namespace) + " cannot be null, use an empty string for the default namespace instead");
             Module = module;
             Namespace = @namespace;
         }
 
-        private TypeModification(TypeModification declaringType, UTF8String name, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
+        private TypeModification(TypeModification declaringType, UTF8String name, ModificationKind kind, bool readOnly) : base(declaringType, name, kind, readOnly)
         {
             if (name is null) throw new ArgumentNullException(nameof(name));
-            Name = name;
             NestedTypes = members.Values.OfType<TypeModification>();
             Fields = members.Values.OfType<FieldModification>();
             Properties = members.Values.OfType<PropertyModification>();
@@ -275,8 +251,8 @@ namespace CodeSurgeon
         }
 
         public TypeModification NestedType(UTF8String name, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new TypeModification(this, n, k, ReadOnly));
-        public FieldModification Field(UTF8String name, FieldSig signature, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new FieldModification(this, n, signature, k, ReadOnly));
-        public MethodModification Method(UTF8String name, MethodSig signature, ModificationKind kind)
+        public FieldModification Field(UTF8String name, FieldSignature signature, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new FieldModification(this, n, signature, k, ReadOnly));
+        public MethodModification Method(UTF8String name, MethodSignature signature, ModificationKind kind)
         {
             lock (methods)
             {
@@ -284,8 +260,10 @@ namespace CodeSurgeon
                 return method;
             }
         }
-        public PropertyModification Property(UTF8String name, PropertySig signature, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new PropertyModification(this, n, signature, k, ReadOnly));
-        public EventModification Event(UTF8String name, TypeModification type, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new EventModification(this, n, type, k, ReadOnly));
+        public PropertyModification Property(UTF8String name, PropertySignature signature, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new PropertyModification(this, n, signature, k, ReadOnly));
+        public EventModification Event(UTF8String name, ITypeReference<ITypeDefOrRef> type, ModificationKind kind) => GetOrCreate(name, kind, (n, k) => new EventModification(this, n, type, k, ReadOnly));
+
+        public void BaseInterface(InterfaceImplementation type) => baseInterfaces.Add(type);
 
         public override TypeDef Resolve(ISearchContext context)
         {
@@ -296,11 +274,12 @@ namespace CodeSurgeon
                 TypeDef type = IsNested ? declaringType.NestedTypes.FirstOrDefault(nt => nt.Name == Name) : module.Find(new TypeRefUser(module, Namespace, Name));
                 if (!CheckExistence(type)) return type;
                 BeginModify();
-                if (IsNested) return new TypeDefUser(Name)
+                if (IsNested) type = new TypeDefUser(Name)
                 {
                     DeclaringType = declaringType
                 };
                 else module.Types.Add(type = new TypeDefUser(Namespace, Name));
+                foreach (GenericParameter parameter in GenericParameters) type.GenericParameters.Add(context.Get(parameter));
                 return type;
             }
             catch (ReadOnlyInstallException e)
@@ -315,14 +294,19 @@ namespace CodeSurgeon
             {
                 TypeDef type = context.Get(this);
                 CheckAttributes(type);
+                if (GenericParameters != null && !Enumerable.SequenceEqual(GenericParameters.Select(context.Get), type.GenericParameters, GenericComparer))
+                {
+                    throw new SymbolInstallException<TypeModification>(this, new InstallException("mismatching generic parameters"));
+                }
                 if (BaseType != null)
                 {
-                    TypeDef desiredBase = context.Get(BaseType);
+                    ITypeDefOrRef desiredBase = context.Get(BaseType);
                     if (!Comparer.Equals(type.BaseType, desiredBase))
                     {
                         BeginModify();
                         type.BaseType = desiredBase;
                     }
+                    foreach (InterfaceImplementation desired in BaseInterfaces) type.Interfaces.Add(context.Get(desired));
                 }
             }
             catch (ReadOnlyInstallException e)
@@ -336,7 +320,7 @@ namespace CodeSurgeon
         {
             TypeAttributes newAttributes = type.Attributes | PreservedAttributes & Attributes;
             TypeAttributes mask = TypeAttributes.VisibilityMask;
-            if (!CheckAccessLevel(type.Attributes.GetAccessLevel(IsNested))) Attributes.Replace(ref newAttributes, mask);
+            if (!CheckAccessLevel(type.Attributes.GetAccessLevel(IsNested, out bool isValid)) || !isValid) Attributes.Replace(ref newAttributes, mask);
             mask |= PreservedAttributes;
             if (!Attributes.Equals(newAttributes, ~mask)) Attributes.Replace(ref newAttributes, ~mask);
             if (type.Attributes == newAttributes) return;
@@ -360,29 +344,28 @@ namespace CodeSurgeon
             if (existing.Kind != kind) throw new ArgumentException("existing member " + name.String + " has kind " + existing.Kind + " but kind " + kind + " was requested");
             return casted;
         }
+
+        public bool Equals(ITypeReference<ITypeDefOrRef> other) => TypeReference.Equals(this, other);
+
+        IModuleReference<IModule> ITypeReference<TypeDef>.Module => Module;
     }
 
-    public sealed class FieldModification : AccessibleModification<FieldDef, FieldModification>
+    public sealed class FieldModification : AccessibleModification<FieldDef, FieldModification>, IFieldReference<FieldDef>
     {
         private const FieldAttributes PreservedAttributes = FieldAttributes.SpecialName | FieldAttributes.RTSpecialName | FieldAttributes.HasFieldMarshal | FieldAttributes.HasDefault;
-
-        public UTF8String Name { get; }
-        public FieldSig Signature { get; }
+        
+        public FieldSignature Signature { get; }
 
         public FieldAttributes Attributes { get; set; }
 
-        public override UTF8String FullName => DeclaringType.FullName.Concat(".", Name);
+        public override UTF8String FullName => this.ToFullName();
         public override SymbolKind SymbolKind => SymbolKind.Field;
 
         internal override AccessLevel AccessLevel => Attributes.GetAccessLevel();
 
         private protected override FieldModification This => this;
 
-        internal FieldModification(TypeModification declaringType, UTF8String name, FieldSig signature, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
-        {
-            Name = name;
-            Signature = signature;
-        }
+        internal FieldModification(TypeModification declaringType, UTF8String name, FieldSignature signature, ModificationKind kind, bool readOnly) : base(declaringType, name, kind, readOnly) => Signature = signature;
 
         public override FieldDef Resolve(ISearchContext context)
         {
@@ -392,7 +375,7 @@ namespace CodeSurgeon
                 FieldDef field = declaringType.FindField(Name);
                 if (!CheckExistence(field)) return field;
                 BeginModify();
-                return new FieldDefUser(Name, Signature, Attributes)
+                return new FieldDefUser(Name, context.Get(Signature), Attributes)
                 {
                     DeclaringType = declaringType
                 };
@@ -408,7 +391,7 @@ namespace CodeSurgeon
             try
             {
                 FieldDef field = context.Get(this);
-                CheckDefinition(field);
+                CheckDefinition(field, context);
             }
             catch (ReadOnlyInstallException e)
             {
@@ -416,9 +399,9 @@ namespace CodeSurgeon
             }
         }
 
-        private void CheckDefinition(FieldDef field)
+        private void CheckDefinition(FieldDef field, ISearchContext context)
         {
-            if (!Comparer.Equals(field.FieldSig, Signature)) throw new InstallException("existing field has an incompatible signature");
+            if (!Comparer.Equals(field.FieldSig, context.Get(Signature))) throw new InstallException("existing field has an incompatible signature");
             CheckAttributes(field);
         }
 
@@ -433,16 +416,18 @@ namespace CodeSurgeon
             BeginModify();
             field.Attributes = newAttributes;
         }
+
+        public bool Equals(IFieldReference<IField> other) => FieldReference.Equals(this, other);
     }
 
-    public sealed class MethodModification : AccessibleModification<MethodDef, MethodModification>
+    public sealed class MethodModification : AccessibleModification<MethodDef, MethodModification>, IMethodReference<MethodDef>
     {
         private const MethodAttributes PreservedAttributes = MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
-
-        public UTF8String Name { get; }
-        public MethodSig Signature { get; }
+        
+        public MethodSignature Signature { get; }
 
         public MethodAttributes Attributes { get; set; }
+        public IEnumerable<InterfaceMethodOverride> Overrides => overrides;
         public MethodBody Body { get; set; }
         public ITokenTransformer TokenTransformer { get; set; }
 
@@ -453,21 +438,22 @@ namespace CodeSurgeon
 
         private protected override MethodModification This => this;
 
-        internal MethodModification(TypeModification declaringType, UTF8String name, MethodSig signature, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
-        {
-            Name = name;
-            Signature = signature;
-        }
+        private readonly List<InterfaceMethodOverride> overrides = new List<InterfaceMethodOverride>();
+
+        internal MethodModification(TypeModification declaringType, UTF8String name, MethodSignature signature, ModificationKind kind, bool readOnly) : base(declaringType, name, kind, readOnly) => Signature = signature;
+
+        public void Override(InterfaceMethodOverride @override) => overrides.Add(@override);
 
         public override MethodDef Resolve(ISearchContext context)
         {
             try
             {
                 TypeDef declaringType = context.Get(DeclaringType);
-                MethodDef method = declaringType.FindMethod(Name, Signature, SearchOptions);
+                MethodSig sig = context.Get(Signature);
+                MethodDef method = declaringType.FindMethod(Name, sig, SearchOptions);
                 if (!CheckExistence(method)) return method;
                 BeginModify();
-                return new MethodDefUser(Name, Signature, Attributes)
+                return new MethodDefUser(Name, sig, Attributes)
                 {
                     DeclaringType = declaringType
                 };
@@ -484,11 +470,18 @@ namespace CodeSurgeon
             {
                 MethodDef method = context.Get(this);
                 CheckAttributes(method);
+                if (Overrides != null)
+                {
+                    BeginModify();
+                    method.Overrides.Clear();
+                    foreach (InterfaceMethodOverride @override in Overrides) method.Overrides.Add(context.Get(@override));
+                }
                 switch (Body)
                 {
                     case CilBody cilBody:
                         Common(out ITransformContext tc);
                         method.Body = CopyCilBody(method.Module, cilBody, tc);
+                        method.Body.UpdateInstructionOffsets();
                         break;
                     case NativeMethodBody nativeBody:
                         Common(out _);
@@ -531,7 +524,7 @@ namespace CodeSurgeon
                 HandlerEnd = eh.HandlerEnd,
                 CatchType = eh.CatchType,
                 HandlerType = eh.HandlerType
-            }).ToList(), body.Variables.Select(v => new Local(module.Import(v.Type), v.Name, v.Index)).ToList());
+            }).ToList(), body.Variables.Select(v => new Local(TokenTransformer.Transform(v.Type, context), v.Name, v.Index)).ToList());
         }
 
         private Instruction CopyCilInstruction(ModuleDef module, Instruction instruction, ITransformContext context)
@@ -539,30 +532,38 @@ namespace CodeSurgeon
             switch (instruction.Operand)
             {
                 case ITypeDefOrRef typeRef:
-                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(typeRef, context)));
+                    return Copy(TokenTransformer.Transform(typeRef, context));
                 case CorLibTypeSig corSig:
-                    return new Instruction(instruction.OpCode, module.CorLibTypes.GetCorLibTypeSig(TokenTransformer.Transform(corSig, context).TypeDefOrRef));
+                    return Copy(module.CorLibTypes.GetCorLibTypeSig(TokenTransformer.Transform(corSig, context).TypeDefOrRef));
+                case MemberRef member:
+                    if (member.IsFieldRef) return Copy(TokenTransformer.Transform((IField)member, context));
+                    else if (member.IsMethodRef) return Copy(TokenTransformer.Transform((IMethodDefOrRef)member, context));
+                    goto default;
                 case IField field:
-                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(field, context)));
-                case IMethod method:
-                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(method, context)));
+                    return Copy(TokenTransformer.Transform(field, context));
+                case IMethodDefOrRef method:
+                    return Copy(TokenTransformer.Transform(method, context));
                 case ITokenOperand token:
-                    return new Instruction(instruction.OpCode, module.Import(TokenTransformer.Transform(token, context)));
+                    return Copy(TokenTransformer.Transform(token, context));
                 case MethodSig methodSig:
+                    return Copy(TokenTransformer.Transform(methodSig, context));
                 case Parameter _:
                 case Local _:
                 default:
                     return instruction;
             }
+
+            Instruction Copy(object operand) => new Instruction(instruction.OpCode, operand);
         }
+
+        public bool Equals(IMethodReference<IMethod> other) => MethodReference.Equals(this, other);
     }
 
     public sealed class PropertyModification : MemberModification<PropertyDef, PropertyModification>
     {
         private const PropertyAttributes PreservedAttributes = PropertyAttributes.SpecialName | PropertyAttributes.RTSpecialName | PropertyAttributes.HasDefault;
-
-        public UTF8String Name { get; }
-        public PropertySig Signature { get; }
+        
+        public PropertySignature Signature { get; }
 
         public PropertyAttributes Attributes { get; set; }
         public IEnumerable<MethodModification> GetMethods => getMethods;
@@ -578,11 +579,7 @@ namespace CodeSurgeon
         private readonly ISet<MethodModification> setMethods = new HashSet<MethodModification>();
         private readonly ISet<MethodModification> otherMethods = new HashSet<MethodModification>();
 
-        internal PropertyModification(TypeModification declaringType, UTF8String name, PropertySig signature, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
-        {
-            Name = name;
-            Signature = signature;
-        }
+        internal PropertyModification(TypeModification declaringType, UTF8String name, PropertySignature signature, ModificationKind kind, bool readOnly) : base(declaringType, name, kind, readOnly) => Signature = signature;
 
         public void Get(MethodModification method) => getMethods.Add(method);
         public void Set(MethodModification method) => setMethods.Add(method);
@@ -593,10 +590,11 @@ namespace CodeSurgeon
             try
             {
                 TypeDef declaringType = context.Get(DeclaringType);
-                PropertyDef property = declaringType.FindProperty(Name, Signature, SearchOptions);
+                PropertySig sig = context.Get(Signature);
+                PropertyDef property = declaringType.FindProperty(Name, sig, SearchOptions);
                 if (!CheckExistence(property)) return property;
                 BeginModify();
-                return new PropertyDefUser(Name, Signature, Attributes)
+                return new PropertyDefUser(Name, sig, Attributes)
                 {
                     DeclaringType = declaringType
                 };
@@ -637,9 +635,8 @@ namespace CodeSurgeon
     public sealed class EventModification : MemberModification<EventDef, EventModification>
     {
         private const EventAttributes PreservedAttributes = EventAttributes.SpecialName | EventAttributes.RTSpecialName;
-
-        public UTF8String Name { get; }
-        public TypeModification Type { get; }
+        
+        public ITypeReference<ITypeDefOrRef> Type { get; }
 
         public EventAttributes Attributes { get; set; }
         public MethodModification AddMethod { get; set; }
@@ -654,11 +651,7 @@ namespace CodeSurgeon
 
         private ISet<MethodModification> otherMethods = new HashSet<MethodModification>();
 
-        internal EventModification(TypeModification declaringType, UTF8String name, TypeModification type, ModificationKind kind, bool readOnly) : base(declaringType, kind, readOnly)
-        {
-            Name = name;
-            Type = type;
-        }
+        internal EventModification(TypeModification declaringType, UTF8String name, ITypeReference<ITypeDefOrRef> type, ModificationKind kind, bool readOnly) : base(declaringType, name, kind, readOnly) => Type = type;
 
         public void Other(MethodModification method) => otherMethods.Add(method);
 
@@ -667,7 +660,7 @@ namespace CodeSurgeon
             try
             {
                 TypeDef declaringType = context.Get(DeclaringType);
-                TypeDef type = context.Get(Type);
+                ITypeDefOrRef type = context.Get(Type);
                 EventDef @event = declaringType.FindEvent(Name, type, SearchOptions);
                 if (!CheckExistence(@event)) return @event;
                 BeginModify();

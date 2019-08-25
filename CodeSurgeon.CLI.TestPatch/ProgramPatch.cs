@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-[module: Required("CodeSurgeon.CLI.TestTarget", false)]
+[module: Required("CodeSurgeon.CLI.TestTarget", false), Required("System.Runtime", true), Required("System.Runtime.Extensions", true), Required("System.Console", true)]
 
 namespace CodeSurgeon.CLI.TestPatch
 {

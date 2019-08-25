@@ -2,7 +2,7 @@
   "profiles": {
     "CodeSurgeon.CLI": {
       "commandName": "Project",
-      "commandLineArgs": "-p CodeSurgeon.CLI.TestPatch.dll -t . -o output"
+      "commandLineArgs": "-p CodeSurgeon.CLI.TestPatch.dll -t . -t \"C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder\\microsoft.netcore.app\\2.1.0\\ref\\netcoreapp2.1\" -o output"
     }
   }
 }

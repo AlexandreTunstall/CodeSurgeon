@@ -13,7 +13,7 @@ namespace CodeSurgeon.CLI
 
         private protected CliStreamSource(IEnumerable<IStreamSource> sources) => ReadSources = sources;
 
-        public Stream OpenRead(UTF8String assemblyName) => ReadSources.Select(src => src.OpenRead(assemblyName)).FirstOrDefault();
+        public Stream OpenRead(UTF8String assemblyName) => ReadSources.Select(src => src.OpenRead(assemblyName)).FirstOrDefault(s => !(s is null));
 
         public abstract Stream OpenWrite(UTF8String assemblyName);
     }

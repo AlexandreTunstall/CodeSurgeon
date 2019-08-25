@@ -10,44 +10,18 @@ namespace CodeSurgeon
 {
     public static class Extensions
     {
-        public static FieldSig Import(this ModuleDef module, FieldSig sig) => new FieldSig(module.Import(sig.Type));
-        
-        /*public static TypeSig AddScope(this TypeSig sig)
+        public static ILeafSignature<LeafSig> GetLeaf(this ITypeSignature<TypeSig> sig)
         {
-            switch (sig)
-            {
-                case ClassSig @class:
-                    @class.ToTypeDefOrRef()
-                    return new ClassSig()
+            while (true) {
+                switch (sig)
+                {
+                    case ILeafSignature<LeafSig> leaf:
+                        return leaf;
+                    case INonLeafSignature<NonLeafSig> nonLeaf:
+                        sig = nonLeaf.Next;
+                        break;
+                }
             }
-        }*/
-        
-        public static TypeSig ApplyToLeaf(this TypeSig sig, Func<LeafSig, TypeSig> transform)
-        {
-            if (sig is LeafSig ls) return transform(ls);
-            TypeSig unwrapped = ApplyToLeaf(sig.Next, transform);
-            switch (sig)
-            {
-                case PtrSig ptr:
-                    return new PtrSig(unwrapped);
-                case ByRefSig byRef:
-                    return new ByRefSig(unwrapped);
-                case ArraySig array:
-                    return new ArraySig(unwrapped, array.Rank, array.Sizes, array.LowerBounds);
-                case SZArraySig szArray:
-                    return new SZArraySig(unwrapped);
-                case CModReqdSig cModReqd:
-                    return new CModReqdSig(cModReqd.Modifier, unwrapped);
-                case CModOptSig cModOpt:
-                    return new CModOptSig(cModOpt.Modifier, unwrapped);
-                case PinnedSig pinned:
-                    return new PinnedSig(unwrapped);
-                case ValueArraySig valueArray:
-                    return new ValueArraySig(unwrapped, valueArray.Size);
-                case ModuleSig module:
-                    return new ModuleSig(module.Index, unwrapped);
-            }
-            throw new NotImplementedException("unknown element type " + sig.ElementType);
         }
 
         public static bool Equals(this TypeAttributes a, TypeAttributes b, TypeAttributes mask) => (a & mask) == (b & mask);
@@ -95,13 +69,17 @@ namespace CodeSurgeon
             }
         }
 
-        public static AccessLevel GetAccessLevel(this TypeAttributes attributes, bool nested)
+        public static AccessLevel GetAccessLevel(this TypeAttributes attributes, bool nested, out bool isLevelValid)
         {
+            isLevelValid = true;
             if (!nested)
             {
                 switch (attributes & TypeAttributes.VisibilityMask)
                 {
                     default:
+                        isLevelValid = false;
+                        return default;
+                    case TypeAttributes.NotPublic:
                         return AccessLevel.Private;
                     case TypeAttributes.Public:
                         return AccessLevel.Public;
@@ -110,6 +88,9 @@ namespace CodeSurgeon
             switch (attributes & TypeAttributes.VisibilityMask)
             {
                 default:
+                    isLevelValid = false;
+                    return default;
+                case TypeAttributes.NestedPrivate:
                     return AccessLevel.Private;
                 case TypeAttributes.NestedFamANDAssem:
                     return AccessLevel.FamilyAndAssembly;
@@ -176,5 +157,36 @@ namespace CodeSurgeon
                     throw new ArgumentException("unrecognized token provider type: " + token.GetType());
             }
         }
+
+        public static UTF8String ToFullName<TSymbol>(this ITypeReference<TSymbol> reference) where TSymbol : class, ITypeDefOrRef
+        {
+            ITypeReference<ITypeDefOrRef> current = reference;
+            List<UTF8String> tokens = new List<UTF8String>();
+            while (current.IsNested)
+            {
+                tokens.Add(current.Name);
+                tokens.Add("/");
+                current = current.DeclaringType;
+            }
+            tokens.Add(current.Name);
+            if (current.Namespace.DataLength > 0)
+            {
+                tokens.Add(".");
+                tokens.Add(current.Namespace);
+            }
+            if (current is TypeModification mod)
+            {
+                tokens.Add("]");
+                tokens.Add(mod.Module.FullName);
+                tokens.Add("[");
+            }
+            tokens.Reverse();
+            return UTF8String.Empty.Concat(tokens);
+        }
+        public static UTF8String ToFullName<TSymbol>(this IFieldReference<TSymbol> reference) where TSymbol : class, IField => reference.DeclaringType.FullName.Concat(".", reference.Name);
+        public static UTF8String ToFullName<TSymbol>(this IMethodReference<TSymbol> reference) where TSymbol : class, IMethod => reference.DeclaringType.FullName.Concat(".", reference.Name, "[", reference.Signature.ToString(), "]");
+
+        public static bool Compare<T>(this T a, T b) where T : IEquatable<T> => EqualityComparer<T>.Default.Equals(a, b);
+        public static bool Compare<T>(this IEnumerable<T> a, IEnumerable<T> b) where T : IEquatable<T> => Enumerable.SequenceEqual(a, b, EqualityComparer<T>.Default);
     }
 }

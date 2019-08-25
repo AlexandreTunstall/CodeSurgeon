@@ -100,7 +100,7 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            type.Field(StringField, new FieldSig(new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
+            type.Field(StringField, new FieldSignature(new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "String", new ModuleReference("System.Runtime")), ElementType.String)), ModificationKind.FailIfMissing);
             installer.Add(patch);
             installer.Install();
         }
@@ -112,7 +112,7 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            type.Field(MissingMember, new FieldSig(new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
+            type.Field(MissingMember, new FieldSignature(new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "String", new ModuleReference("System.Runtime")), ElementType.String)), ModificationKind.FailIfMissing);
             installer.Add(patch);
             installer.Install();
         }
@@ -124,7 +124,7 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            type.Method(NopMethod, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "Void", installer), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
+            type.Method(NopMethod, new MethodSignature(CallingConvention.HasThis, 0u, new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "Void", new ModuleReference("System.Runtime")), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
             installer.Add(patch);
             installer.Install();
         }
@@ -136,7 +136,7 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            type.Method(MissingMember, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "Void", installer), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
+            type.Method(MissingMember, new MethodSignature(CallingConvention.HasThis, 0u, new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "Void", new ModuleReference("System.Runtime")), ElementType.Void)), ModificationKind.FailIfMissing).Attributes = MethodAttributes.HideBySig;
             installer.Add(patch);
             installer.Install();
         }
@@ -148,9 +148,9 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            MethodModification propertyGet = type.Method("get_" + StringProperty, new MethodSig(CallingConvention.HasThis, 0u, new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
+            MethodModification propertyGet = type.Method("get_" + StringProperty, new MethodSignature(CallingConvention.HasThis, 0u, new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "String", new ModuleReference("System.Runtime")), ElementType.String)), ModificationKind.FailIfMissing);
             propertyGet.Attributes = MethodAttributes.HideBySig | MethodAttributes.SpecialName;
-            type.Property(StringProperty, new PropertySig(true, new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing).Get(propertyGet);
+            type.Property(StringProperty, new PropertySignature(true, new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "String", new ModuleReference("System.Runtime")), ElementType.String)), ModificationKind.FailIfMissing).Get(propertyGet);
             installer.Add(patch);
             installer.Install();
         }
@@ -162,7 +162,7 @@ namespace " + ReadOnlyNamespace + @"
             StandardPatch patch = new StandardPatch("TestPatch");
             TypeModification type = patch.Module(module.Name, ModificationKind.FailIfMissing, true).Type(ReadOnlyNamespace, NormalClass, ModificationKind.FailIfMissing);
             type.Attributes = TypeAttributes.BeforeFieldInit;
-            type.Property(MissingMember, new PropertySig(true, new CorLibTypeSig(new TypeRefUser(null, "System", "String", installer), ElementType.String)), ModificationKind.FailIfMissing);
+            type.Property(MissingMember, new PropertySignature(true, new CorLibTypeSignature(new TypeReference(patch.Module("System.Runtime", ModificationKind.FailIfMissing, true), "System", "String", new ModuleReference("System.Runtime")), ElementType.String)), ModificationKind.FailIfMissing);
             installer.Add(patch);
             installer.Install();
         }

@@ -5,18 +5,18 @@ using System.Text;
 
 namespace CodeSurgeon
 {
-    public interface ISearchContext
+    public interface ISearchContext : IResolutionScope
     {
         ModuleDef Get(UTF8String moduleName);
-        TSymbol Get<TSymbol>(IModification<TSymbol> modification) where TSymbol : class, IDnlibDef;
+        TSymbol Get<TSymbol>(IResolvable<TSymbol> reference);
     }
 
-    public abstract class CachedSearchContext : ISearchContext
+    public abstract class CachedSearchContext : DummyResolutionScope, ISearchContext
     {
         public IModuleSource Modules { get; }
 
         protected readonly Dictionary<UTF8String, ModuleDef> modules = new Dictionary<UTF8String, ModuleDef>();
-        protected readonly Dictionary<IModification<IDnlibDef>, IDnlibDef> symbols = new Dictionary<IModification<IDnlibDef>, IDnlibDef>();
+        protected readonly Dictionary<IModification<IDnlibDef>, object> symbols = new Dictionary<IModification<IDnlibDef>, object>();
 
         public CachedSearchContext(IModuleSource modules) => Modules = modules;
 
@@ -31,15 +31,22 @@ namespace CodeSurgeon
             }
         }
 
-        public virtual TSymbol Get<TSymbol>(IModification<TSymbol> modification) where TSymbol : class, IDnlibDef
+        public virtual TSymbol Get<TSymbol>(IResolvable<TSymbol> resolvable)
         {
+            // Don't cache if it's not a modification
+            if (!(resolvable is IModification<IDnlibDef> mod)) return resolvable.Resolve(this);
             lock (symbols)
             {
-                if (symbols.TryGetValue(modification, out IDnlibDef value)) return (TSymbol)value;
-                TSymbol result = modification.Resolve(this);
-                symbols.Add(modification, result);
+                if (symbols.TryGetValue(mod, out object value)) return (TSymbol)value;
+                TSymbol result = resolvable.Resolve(this);
+                symbols.Add(mod, result);
                 return result;
             }
         }
+    }
+
+    public interface IResolvable<out TSymbol>
+    {
+        TSymbol Resolve(ISearchContext context);
     }
 }
