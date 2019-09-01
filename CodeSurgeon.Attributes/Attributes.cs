@@ -26,7 +26,18 @@ namespace CodeSurgeon.Attributes
 
         public NameAttribute(string value) : this(Encoding.UTF8.GetBytes(value)) { }
         public NameAttribute(byte[] value) => Value = value;
-        public NameAttribute(Type type) : this(type.FullName.Replace('+', '/')) => Assembly = Encoding.UTF8.GetBytes(type.GetTypeInfo().Assembly.GetName().Name);
+        public NameAttribute(Type type) : this(type.FullName.Replace('+', '/')) => Assembly = Encoding.UTF8.GetBytes(type
+#if NETSTANDARD
+            .GetTypeInfo()
+#endif
+            .Assembly.GetName().Name);
+
+        private static Assembly GetAssembly(Type type)
+#if NETSTANDARD
+            => type.GetTypeInfo().Assembly;
+#else
+            => type.Assembly;
+#endif
     }
 
     [AttributeUsage(AttributeTargets.Module | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Enum | AttributeTargets.Delegate)]
